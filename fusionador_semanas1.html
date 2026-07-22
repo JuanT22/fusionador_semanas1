@@ -1,0 +1,5396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fusionador de semanas · Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --tinta:#16213d;
+    --tinta-suave:#5d6a86;
+    --papel:#eef1f6;
+    --hoja:#ffffff;
+    --linea:#ccd4e3;
+    --ambar:#f0b429;
+    --union:#1f6f6a;
+    --alerta:#b4453c;
+    --radio:10px;
+    --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--sans);
+    background:var(--papel);
+    color:var(--tinta);
+    line-height:1.55;
+    padding:32px 20px 72px;
+  }
+  .lienzo{max-width:980px;margin:0 auto}
+
+  /* ---------- encabezado ---------- */
+  header{margin-bottom:28px}
+  .rotulo{
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--tinta-suave);margin:0 0 6px;
+  }
+  h1{
+    font-size:clamp(1.7rem,3.6vw,2.4rem);font-weight:600;margin:0 0 8px;
+    letter-spacing:-.02em;
+  }
+  h1 em{font-style:normal;color:var(--union)}
+  header p{margin:0;max-width:62ch;color:var(--tinta-suave)}
+
+  /* ---------- tarjetas ---------- */
+  .panel{
+    background:var(--hoja);border:1px solid var(--linea);
+    border-radius:var(--radio);padding:20px;margin-bottom:18px;
+  }
+  .panel h2{
+    font-size:.78rem;font-family:var(--mono);letter-spacing:.12em;
+    text-transform:uppercase;color:var(--tinta-suave);margin:0 0 14px;font-weight:500;
+  }
+
+  /* ---------- zona de carga ---------- */
+  #zona{
+    border:2px dashed var(--linea);border-radius:var(--radio);
+    background:var(--hoja);padding:34px 20px;text-align:center;
+    transition:border-color .15s,background .15s;cursor:pointer;
+  }
+  #zona:hover,#zona:focus-visible{border-color:var(--union)}
+  #zona.encima{border-color:var(--union);background:#f0f8f7}
+  #zona.cargado{border-style:solid;border-color:var(--union);text-align:left;padding:18px 20px}
+  #zona p{margin:0}
+  .zona-titulo{font-weight:600;font-size:1.05rem}
+  .zona-nota{color:var(--tinta-suave);font-size:.9rem;margin-top:6px !important}
+  .archivo-info{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .archivo-info .nombre{font-family:var(--mono);font-weight:500}
+  input[type=file]{display:none}
+
+  /* ---------- opciones ---------- */
+  .opciones{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-end}
+  .campo{display:flex;flex-direction:column;gap:6px}
+  .campo label{font-size:.85rem;font-weight:500}
+  .campo .ayuda{font-size:.78rem;color:var(--tinta-suave)}
+  select,input[type=number]{
+    font-family:var(--sans);font-size:.92rem;padding:7px 10px;
+    border:1px solid var(--linea);border-radius:6px;background:var(--hoja);color:var(--tinta);
+  }
+  input[type=number]{width:80px}
+  .casilla{display:flex;align-items:center;gap:8px;font-size:.9rem}
+
+  /* ---------- botones ---------- */
+  button{
+    font-family:var(--sans);font-size:.92rem;font-weight:500;
+    border-radius:6px;border:1px solid transparent;padding:9px 16px;cursor:pointer;
+    transition:background .15s,border-color .15s,color .15s;
+  }
+  .primario{background:var(--tinta);color:#fff}
+  .primario:hover:not(:disabled){background:#0d1730}
+  .primario:disabled{background:#b9c2d4;cursor:not-allowed}
+  .secundario{background:var(--hoja);border-color:var(--linea);color:var(--tinta)}
+  .secundario:hover{border-color:var(--tinta-suave)}
+  :focus-visible{outline:2px solid var(--union);outline-offset:2px}
+
+  /* ---------- mapa de fusión (elemento firma) ---------- */
+  #mapa{margin:4px 0 2px}
+  .fila-pastillas{display:grid;gap:6px;margin-bottom:0}
+  .pastilla{
+    justify-self:center;width:34px;height:34px;border-radius:50%;
+    display:grid;place-items:center;font-family:var(--mono);font-size:.85rem;font-weight:500;
+    background:var(--papel);border:1px solid var(--linea);
+  }
+  .pastilla.origen{background:#fdf3d8;border-color:var(--ambar)}
+  .pastilla.destino{background:var(--union);border-color:var(--union);color:#fff}
+  .fila-llaves{display:grid;height:22px;margin:2px 0}
+  .llave{
+    border-left:1px solid var(--tinta-suave);border-right:1px solid var(--tinta-suave);
+    border-bottom:1px solid var(--tinta-suave);border-radius:0 0 8px 8px;
+    height:11px;position:relative;align-self:start;margin:0 18%;
+  }
+  .llave::after{
+    content:"";position:absolute;left:50%;top:11px;width:1px;height:11px;
+    background:var(--tinta-suave);
+  }
+  .leyenda-mapa{
+    font-family:var(--mono);font-size:.72rem;color:var(--tinta-suave);
+    text-align:center;margin:12px 0 0;
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .pastilla{animation:aparece .32s ease both}
+    .llave{animation:aparece .32s ease both}
+  }
+  @keyframes aparece{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  /* ---------- resultados ---------- */
+  .barra-resultados{
+    display:flex;justify-content:space-between;align-items:center;
+    gap:14px;flex-wrap:wrap;margin-bottom:16px;
+  }
+  .conteo{font-size:1.05rem;font-weight:600}
+  .conteo span{font-family:var(--mono);color:var(--union)}
+  .acciones{display:flex;gap:10px;flex-wrap:wrap}
+
+  .semana{border:1px solid var(--linea);border-radius:var(--radio);margin-bottom:12px;background:var(--hoja)}
+  .semana-cab{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 16px;flex-wrap:wrap}
+  .semana-id{display:flex;align-items:baseline;gap:10px}
+  .semana-id strong{font-size:1.05rem}
+  .origenes{font-family:var(--mono);font-size:.8rem;color:var(--tinta-suave)}
+  .notas{list-style:none;margin:0;padding:0 16px 14px;display:flex;flex-direction:column;gap:5px}
+  .notas li{
+    font-family:var(--mono);font-size:.78rem;color:var(--tinta-suave);
+    padding-left:14px;position:relative;
+  }
+  .notas li::before{content:"–";position:absolute;left:0}
+  .notas li.union::before{content:"+";color:var(--union)}
+  .vista{border-top:1px solid var(--linea);padding:0}
+  .vista iframe{width:100%;height:520px;border:0;display:block;background:#fff}
+  .oculto{display:none}
+
+  #error{
+    border:1px solid var(--alerta);background:#fdf1f0;color:#7d2b24;
+    border-radius:var(--radio);padding:14px 16px;margin-bottom:18px;
+  }
+  #error strong{display:block}
+  footer{
+    margin-top:26px;font-size:.8rem;color:var(--tinta-suave);
+    border-top:1px solid var(--linea);padding-top:14px;
+  }
+  footer code{font-family:var(--mono);background:var(--hoja);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="lienzo">
+
+  <header>
+    <p class="rotulo">Páginas de curso · Canvas</p>
+    <h1>Fusiona las semanas <em>de dos en dos</em></h1>
+    <p>Sube el archivo <code>Curso+&lt;ID&gt;.json</code> exportado de Canvas. La página une cada par de semanas
+       respetando el HTML original: un solo resultado de aprendizaje, un solo encabezado por unidad y los temas
+       en orden. Todo se procesa en tu navegador; el archivo no se envía a ningún servidor.</p>
+  </header>
+
+  <div id="error" class="oculto" role="alert"><strong id="error-titulo"></strong><span id="error-detalle"></span></div>
+
+  <div id="zona" tabindex="0" role="button" aria-label="Elegir o soltar el archivo JSON del curso">
+    <p class="zona-titulo">Suelta aquí el JSON del curso</p>
+    <p class="zona-nota">o pulsa para elegirlo · también sirve un archivo con los objetos concatenados</p>
+  </div>
+  <input type="file" id="archivo" accept=".json,application/json,text/plain">
+
+  <div class="panel" id="panel-opciones" style="margin-top:18px">
+    <h2>Cómo fusionar</h2>
+    <div class="opciones">
+      <div class="campo">
+        <label for="grupo">Semanas por grupo</label>
+        <input type="number" id="grupo" value="2" min="2" max="8" step="1">
+        <span class="ayuda">2 = pares (1+2, 3+4…)</span>
+      </div>
+      <div class="campo">
+        <label for="intros">Párrafos de bienvenida repetidos</label>
+        <select id="intros">
+          <option value="primera">Conservar solo el primero</option>
+          <option value="todas">Conservar todos</option>
+        </select>
+        <span class="ayuda">Aplica cuando las dos semanas comparten unidad</span>
+      </div>
+      <div class="campo">
+        <label for="hoja">Hoja de estilos</label>
+        <select id="hoja">
+          <option value="web">Web · style_webIA.css</option>
+          <option value="movil">Móvil · style_movilIA.css (modo oscuro)</option>
+        </select>
+        <span class="ayuda">Se aplica a la vista previa y al HTML descargado</span>
+      </div>
+      <div class="campo">
+        <label class="casilla"><input type="checkbox" id="acordeones"> Unir acordeones con el mismo título</label>
+        <span class="ayuda">Por ejemplo, dos “Actividades recomendadas”</span>
+      </div>
+      <button class="primario" id="fusionar" disabled>Fusionar semanas</button>
+    </div>
+  </div>
+
+  <div class="panel oculto" id="panel-resultados">
+    <div class="barra-resultados">
+      <p class="conteo" id="conteo"></p>
+      <div class="acciones">
+        <button class="primario" id="bajar-json">Descargar JSON fusionado</button>
+        <button class="secundario" id="bajar-html">Descargar todos los HTML</button>
+        <button class="secundario" id="bajar-reporte">Descargar reporte</button>
+      </div>
+    </div>
+    <div id="mapa"></div>
+    <div id="lista"></div>
+  </div>
+
+  <footer>
+    ¿Prefieres la terminal? El script <code>fusionar_semanas.py</code> hace lo mismo por lotes:
+    <code>python3 fusionar_semanas.py "Curso+84399.json" -o salida</code>
+  </footer>
+</div>
+
+
+<script type="text/plain" id="css-web">
+/*
+* Descripcion: hoja de estilos para las metacursos rediseno de UTPL MAD.
+* Ultima actualizacion: 03/12/2020
+* Autor: Ediloja Digital
+*
+* Contenido:
+*
+*    0. Estilos generales
+*    1. Multiples planes docentes
+*    2. Modal
+*    3. Grid
+*    4. Menu principal
+*    5. Resultados de aprendizaje
+*    6. Tabla general
+*    7. Tabla de componentes
+*    8. Otros estilos
+*    9. Previsualziacion
+*    10. Boton flotante
+*    11.Media Query 
+*    12.Dark Mode 
+*/
+
+
+
+/* ==========================================================================
+  0. Estilos generales
+  ========================================================================== */
+
+
+
+.fce .contenedor-principal {
+    padding: 0;
+    margin: 15px 0;
+}
+
+.fce .contenedor-flex {
+    display: flex;
+    justify-content: space-evenly;
+    width: 100%;
+}
+
+.fce .contenedor-filas {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.fce .contorno {
+    background-color: #003f72;
+    height: auto;
+    padding: 10px;
+}
+
+.fce .figura-benner {
+    width: 50%;
+    padding: 1%;
+}
+
+.fce .separador {
+    border-top: #CCCCCC solid 2px !important;
+    margin: 10px 0px;
+}
+
+
+.fce .contenedor-recurso .estilo-enlace a {
+    display: grid;
+    width: 120px;
+    height: 120px;
+    box-shadow: 0 0 0.9em #a6a7a8;
+    margin-right: 2em;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    position: relative;
+    border-radius: 0.6em;
+    transition: background-color 0.8s ease;
+    text-decoration: none !important;
+    color: #153B6D;
+    align-items: flex-end;
+}
+
+.fce .contenedor-recurso .estilo-enlace {
+    padding: 0;
+    margin: 0;
+}
+
+.fce .active .mostrar-modal {
+    background: #004170 !important;
+    color: #ffffff !important;
+}
+
+.fce .active .imagen-frontal {
+    opacity: 0;
+}
+
+
+.fce .contenedor-recurso .estilo-enlace a:hover {
+    background-color: #004170;
+    color: #ffffff;
+}
+
+
+
+.fce .contenedor-recurso .imagen {
+    position: absolute;
+    top: -2em;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+}
+
+.fce .contenedor-recurso .estilo-enlace a span {
+
+    margin: auto;
+    line-height: 80%;
+}
+
+.fce .contenedor-recurso .estilo-enlace .imagen-frontal {
+    z-index: 10;
+}
+
+.fce .contenedor-recurso a:hover .imagen-frontal {
+    opacity: 0;
+}
+
+.fce .contenedor-subtitulo {
+    width: 100%;
+    color: #003F72;
+    text-align: left;
+    margin: 0px;
+    background-color: #F2F2F2;
+    padding-left: 1em;
+    border-left: 5px solid #E1AA3B;
+    border-radius: 0px 10px 10px 0px;
+}
+
+.fce .contenido-centrado {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.fce .contenido-principal {
+    margin-left: 6em;
+}
+
+
+.fce .fondo-semana1 {
+    background-image: url(https://ediloja.com/Virtualizacion/Pregrado/bannerlinea.png);
+    background-size: 100%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+    height: 180px;
+    background-attachment: inherit;
+}
+
+.fce .fondo-semana9 {
+    background-image: url(https://ediloja.com/Virtualizacion/Pregrado/bannerlinea.png);
+    background-size: 100%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+    height: 180px;
+    background-attachment: inherit;
+}
+
+.fce .fondo-bienvenida {
+    background-image: url(https://ediloja.com/Virtualizacion/Pregrado/Banner_Bienvenida%20al%20curso%20en%20linea.png);
+    background-size: 100%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+    height: 100px;
+    background-attachment: inherit;
+}
+
+
+.fce #fotoPerfil {
+    min-width: 5em;
+    min-height: 5em;
+    border-radius: 2em;
+}
+
+.fce pre {
+    word-break: normal;
+}
+
+/* Referencias bibliograficas */
+
+.fce .referencias p {
+    margin-left: 2em;
+    text-indent: -2em;
+}
+
+/* ==========================================================================
+  1. Pagina de creditos
+  ========================================================================== */
+
+.fce .contenedor-licencia {
+    background-color: #e0dedc;
+    padding: 10px;
+    margin-top: 40px;
+}
+
+.fce .contenedor-licencia p.imagen-licencia {
+    margin-top: -40px;
+}
+
+.fce .contenedor-licencia p img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ==========================================================================
+  1. Multiples planes docentes
+  ========================================================================== */
+
+.fce .acorh {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    width: 8em;
+    margin-right: 1.7em;
+}
+
+.fce .acorh:hover .lista-planes {
+    display: block;
+
+}
+
+.fce .acorh:hover .estilo-enlace a {
+    background-color: #004170;
+    color: #ffffff;
+}
+
+.fce .acorh:hover .estilo-enlace a .imagen-frontal {
+    opacity: 0;
+}
+
+
+.fce .lista-planes {
+
+    margin-top: -10px;
+    padding: 0;
+    width: 8em;
+    text-align: center;
+    display: none;
+}
+
+.fce .lista-planes p {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+
+.fce .lista-planes a {
+    display: block;
+    text-decoration: none !important;
+    padding: 8px 8px 8px 8px;
+    color: #000;
+    border: 0;
+    box-sizing: border-box;
+    border-bottom: 1px solid #ccc;
+    transition: background-color 0.8s ease;
+}
+
+.fce .lista-planes a:hover {
+    background-color: #004170;
+    color: #ffffff !important;
+}
+
+/*  ul.acorh,
+  ul.acorh * {
+   margin: 0;
+   padding: 0;
+   border: 0;
+}
+
+  ul.acorh {
+   margin: 10px 0 0 0;
+   padding: 0;
+   list-style: none;
+   width: 100%;
+}
+
+  ul.acorh li {
+   list-style: none;
+}
+
+  ul.acorh li a {
+   display: block;
+   padding: 8px 8px 8px 8px;
+   box-sizing: border-box;
+}
+
+  ul.acorh li ul {
+   max-height: 0;
+   margin: 0;
+   padding: 0;
+   list-style: none;
+   overflow: hidden;
+   transition: .3s all ease-in;
+}
+
+  ul.acorh li li a {
+   padding: 8px 8px 8px 8px;
+  background-color: #004170;
+   color: #ffffff;
+   border: 0;
+   border-bottom: 1px solid #ccc;
+   box-sizing: border-box;
+}
+
+  ul.acorc li li:last-child a {
+   border-bottom: 0;
+}
+
+  ul.acorc li li:last-child a {
+   margin:0;
+}
+
+  ul.acorh li:hover ul {
+   max-height: 300px;
+   overflow: auto;
+   transition: .3s all ease-in;
+}
+
+  ul.acorh li a:hover,
+  ul.acorh li p:hover a {
+    background-color: #004170;
+   color: #ffffff;
+}
+*/
+
+/* ==========================================================================
+  2. Modal
+  ========================================================================== */
+
+.fce .ventana-emergente {
+    display: none;
+    position: fixed !important;
+    z-index: 11;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.fce .ventana-emergente-requisitos {
+    display: none;
+    position: fixed !important;
+    z-index: 11;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgb(0, 0, 0);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.fce .contenido-ventana {
+    background-color: #fefefe;
+    padding: 20px;
+    border: 2px solid #888;
+    width: 20%;
+    margin: auto;
+    -webkit-box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    -moz-box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    position: relative;
+}
+
+.fce .boton-cerrar {
+    height: 40px;
+    width: 40px;
+    padding: 0;
+    border-radius: 50px;
+    cursor: pointer;
+    float: right;
+    font-size: 28px;
+    color: #ffffff;
+    background-color: #C1272D;
+    -moz-border-radius: 50px;
+    -webkit-border-radius: 50px;
+    position: absolute;
+    right: -11px;
+    top: -18px;
+    text-align: center;
+}
+
+.fce .boton-cerrar-requisitos {
+    height: 40px;
+    width: 40px;
+    padding: 0;
+    border-radius: 50px;
+    cursor: pointer;
+    float: right;
+    font-size: 28px;
+    color: #ffffff;
+    background-color: #C1272D;
+    -moz-border-radius: 50px;
+    -webkit-border-radius: 50px;
+    position: absolute;
+    right: -11px;
+    top: -18px;
+    text-align: center;
+}
+
+
+/* ==========================================================================
+  3. Grid
+  ========================================================================== */
+
+.fce .columna-15 {
+    width: 13%;
+    margin: 1%;
+}
+
+.fce .columna-20 {
+    display: grid;
+}
+
+.fce .columna-25 {
+    width: 23%;
+    margin: 1%;
+}
+
+.fce .columna-30 {
+    width: 28%;
+    margin: 1%;
+}
+
+.fce .columna-50 {
+    width: 47%;
+    margin: 1%;
+}
+
+.fce .columna-70 {
+    width: 68%;
+    margin: 1%;
+}
+
+.fce .columna-75 {
+    width: 73%;
+    margin: 1%;
+}
+
+.fce .columna-80 {
+    width: 78%;
+    margin: 1%;
+}
+
+.fce .columna-85 {
+    width: 83%;
+    margin: 1%;
+}
+
+.fce .columna-100 {
+
+    width: 98%;
+    margin-bottom: 3em;
+
+}
+
+/* ==========================================================================
+  4. Menu principal
+  ========================================================================== */
+
+.fce .menu-principal {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.fce .menu-principal a {
+    width: 12.5em;
+    padding: 0.7em 1em;
+    margin: 1px 1px 0 0;
+    color: #001A67;
+    background-color: #E5F2F8;
+    text-align: center;
+    line-height: 100%;
+    text-decoration: none !important;
+    transition: all 0.8s ease;
+    display: grid;
+    align-items: center;
+    border-radius: 0.4em;
+    font-weight: bold;
+}
+
+.fce .menu-principal a:hover {
+    transform: scaleY(1.1);
+    background-color: #EAAB00;
+
+}
+
+.fce .menu-principal .active {
+    transform: scaleY(1.1);
+    background-color: #EAAB00;
+}
+
+.fce .menu-principal .icon {
+    display: none;
+    text-align: center;
+}
+
+/* Boton */
+
+.fce .boton-mas {
+    display: inline-block;
+    color: #092157;
+    background-color: #f2f2f2;
+    text-decoration: none !important;
+    padding-left: 1em;
+    border-radius: 2em;
+    border-bottom: 2px solid #cccccc;
+    transition: all .2s ease-in-out;
+}
+
+.fce .boton-mas:hover {
+    background-color: #cccccc;
+    transform: scale(1.15);
+}
+
+/* Icono de actividades (RA) */
+
+.fce .mostrar-actividades {
+    display: none;
+    position: fixed !important;
+    z-index: 11;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgb(0, 0, 0);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.fce .contenido-tabla {
+    background-color: #fefefe;
+    padding: 20px;
+    border: 2px solid #888;
+    margin: auto;
+    -webkit-box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    -moz-box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    color: #333333;
+    position: relative;
+    width: 80%;
+}
+
+.fce .contenido-actividad {
+    position: relative;
+    transition: background 0.8s ease;
+}
+
+
+.fce .contenido-actividad a {
+
+    color: black;
+}
+
+.fce .actividad {
+    z-index: 1;
+    color: black;
+    margin: 0;
+    width: 19em;
+    border: 1px solid #004170;
+    background: #f0f8ff;
+    padding: 0.5em;
+    position: absolute;
+    transform: translate(0px, -17px);
+
+}
+
+.fce .actividad:hover {
+    color: #fff;
+    /* color de fuente hover */
+}
+
+.fce .actividad::after {
+    content: "";
+    background: #004170;
+    /* color de fondo hover */
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    -webkit-transition: all 0.5s;
+    transition: all 0.5s;
+    visibility: hidden;
+}
+
+.fce .actividad:hover::after {
+    left: 0;
+    right: -1px;
+    top: 0;
+    bottom: 0;
+    -webkit-transition: all 0.5s;
+    transition: all 0.5s;
+    visibility: visible;
+}
+
+.fce .boton-mostrar {
+    cursor: pointer;
+
+}
+
+
+.fce .activar {
+    background: #004170 !important;
+    color: #ffffff !important;
+    border-radius: 5px;
+}
+
+
+/*  .activar-cuadro {
+    border-left: 1.5px solid  #004170;
+ border-right: 1.5px solid #004170;
+ box-shadow: 0 0 0.9em #a6a7a8;
+ -webkit-transition: all 0.8s;
+ transition: all 0.8s;
+}
+
+  .activar-cuadro a{
+     color: #0374B5 !important;
+   text-decoration: underline !important;
+}
+*/
+
+.fce .cuadro {
+    margin: 0;
+    padding: 0;
+    border: 1.5px solid #5D6D7E;
+    border-radius: 5px;
+    position: relative;
+    -webkit-transition: all 2.5s;
+    transition: all 2.5s;
+
+}
+
+.fce .cuadro a {
+    transition: color 0.8s;
+    display: grid;
+    text-decoration: none !important;
+    position: relative;
+    border-radius: 10px;
+    align-content: center;
+    padding: 1.5em;
+    line-height: 1em;
+
+}
+
+.fce .cuadro p {
+    padding: 0;
+    margin: 0;
+}
+
+.fce .cuadro:hover {
+    color: #fff;
+    /* color de fuente hover */
+}
+
+.fce .cuadro::after {
+    content: "";
+    background: #004170;
+    /* color de fondo hover */
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    -webkit-transition: all 0.5s;
+    transition: all 0.5s;
+    visibility: hidden;
+}
+
+.fce .cuadro:hover::after {
+    left: -1px;
+    right: -1px;
+    top: -1px;
+    bottom: -1px;
+    border-radius: 5px;
+    -webkit-transition: all 0.5s;
+    transition: all 0.5s;
+    visibility: visible;
+}
+
+.fce .cuadro:hover a {
+    color: #ffffff !important;
+    text-decoration: none !important;
+    transition: color 0.8s;
+}
+
+/*
+  .cuadro:hover{
+ border-left: 1.5px solid  #004170;
+ border-right: 1.5px solid #004170;
+ box-shadow: 0 0 0.9em #a6a7a8;
+ -webkit-transition: all 0.8s;
+ transition: all 0.8s;
+
+}*/
+
+/*  .cuadro:after {
+ content: "";
+ color:#ffffff;
+ background: #004170; /* color de fondo hover
+ position: absolute;
+ z-index: -1;
+
+ display: block;
+ left: 0;
+ right: 0;
+ 
+ bottom: 100%;
+ -webkit-transition: all 0.35s;
+ transition: all 0.35s;
+ visibility: hidden;
+}
+  .cuadro:hover::after {
+ left: 0;
+ right: 0;
+ top: 0;
+ bottom: 0;
+ -webkit-transition: all 0.35s;
+ transition: all 0.8s;
+ visibility: visible;
+}
+
+  .cuadro:hover a{
+    color: #ffffff;
+}
+
+  .cuadro:hover{
+    color: #ffffff;
+}*/
+
+.fce .boton-ocultar {
+    height: 40px;
+    width: 40px;
+    padding: 0;
+    border-radius: 50px;
+    cursor: pointer;
+    float: right;
+    font-size: 28px;
+    color: #ffffff;
+    background-color: #C1272D;
+    -moz-border-radius: 50px;
+    -webkit-border-radius: 50px;
+    position: absolute;
+    right: -11px;
+    top: -18px;
+    text-align: center;
+}
+
+.fce .contenido-actividad .resultado-contenido {
+    color: #333333;
+    text-align: left;
+}
+
+.fce .imagen-mostrar-ocultar {
+    margin-left: 10px;
+}
+
+.fce .boton-secundario a {
+    text-decoration: none !important;
+    color: #ffffff;
+    background: #003f72;
+    border-radius: 6px;
+    display: inline-block;
+    padding: 6px 10px;
+    margin: 5px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid #ffffff;
+
+}
+
+.fce .boton-secundario a:hover {
+    background-color: #eaab00;
+    color: #153B6D;
+    font-weight: bold;
+}
+
+.fce .boton-ac a {
+    text-decoration: none !important;
+    color: #001A67;
+    background: #E5F2F8;
+    border-radius: 6px;
+    display: inline-block;
+    padding: 6px 10px;
+    margin: 5px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid #ffffff;
+
+}
+
+.fce .boton-ac a:hover {
+    background-color: #EAAB00;
+    color: #153B6D;
+    font-weight: bold;
+}
+
+.fce .boton-desafios {
+    position: relative;
+    -webkit-transition: all 2.5s;
+    transition: all 2.5s;
+    cursor: pointer;
+
+    margin: auto;
+    padding: 0;
+    width: fit-content;
+
+
+}
+
+
+.fce .boton-desafios a {
+    position: relative;
+    border-radius: 6px;
+    align-items: center;
+    justify-content: center;
+    display: inline-block;
+    text-align: center;
+    text-decoration: none !important;
+
+}
+
+.fce .boton-desafios a:focus {
+    outline-style: none !important;
+}
+
+.fce .boton-desafios a:hover::before,
+.fce .boton-desafios a:hover::after {
+    display: block;
+    content: '';
+    position: absolute;
+    width: 6.2em;
+    height: 6.2em;
+    background: #001A67;
+    border-radius: 50%;
+    z-index: -1;
+    animation: 2s clockwise infinite;
+}
+
+.fce .boton-desafios a:hover:after {
+    background: #eaab00;
+    animation: 2s counterclockwise infinite;
+}
+
+@keyframes clockwise {
+    0% {
+        top: -3px;
+        left: 0;
+    }
+
+    12% {
+        top: -2px;
+        left: 2px;
+    }
+
+    25% {
+        top: 0;
+        left: 3px;
+    }
+
+    37% {
+        top: 2px;
+        left: 2px;
+    }
+
+    50% {
+        top: 3px;
+        left: 0;
+    }
+
+    62% {
+        top: 2px;
+        left: -2px;
+    }
+
+    75% {
+        top: 0;
+        left: -3px;
+    }
+
+    87% {
+        top: -2px;
+        left: -2px;
+    }
+
+    100% {
+        top: -3px;
+        left: 0;
+    }
+}
+
+@keyframes counterclockwise {
+    0% {
+        top: -3px;
+        right: 0;
+    }
+
+    12% {
+        top: -2px;
+        right: 2px;
+    }
+
+    25% {
+        top: 0;
+        right: 3px;
+    }
+
+    37% {
+        top: 2px;
+        right: 2px;
+    }
+
+    50% {
+        top: 3px;
+        right: 0;
+    }
+
+    62% {
+        top: 2px;
+        right: -2px;
+    }
+
+    75% {
+        top: 0;
+        right: -3px;
+    }
+
+    87% {
+        top: -2px;
+        right: -2px;
+    }
+
+    100% {
+        top: -3px;
+        right: 0;
+    }
+}
+
+
+
+.fce .active2 a {
+    background-color: #eaab00 !important;
+    color: #153B6D !important;
+    font-weight: bold;
+}
+
+
+
+
+/* ==========================================================================
+  5. Resultados de aprendizaje
+  ========================================================================== */
+
+.fce .icono-contexto {
+    height: 60px;
+    width: 60px;
+    color: #003F72;
+    padding: 0.4em;
+
+}
+
+
+.fce .amarrillo-utpl {
+    background-color: #eaab00;
+    padding: 10px;
+    margin: 0px;
+    color: #001A67;
+    position: absolute;
+    right: 0;
+    z-index: 2;
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+.fce .amarrillo-utpl a {
+    color: #004170;
+    text-decoration: none !important;
+}
+
+.fce .semana {
+    border-right: 3px solid #003f72;
+    margin: 10px;
+    padding: 5px;
+    width: 100px;
+    color: #003f72;
+    text-decoration: none !important;
+}
+
+
+.fce .tab-semana p a {
+    margin: 1px 1px 0 0;
+    color: #001A67;
+    text-align: center;
+    text-decoration: none !important;
+    font-weight: bold;
+    transition: all 0.8s ease;
+    float: left;
+    margin-top: 10px;
+    margin-right: 2px;
+    background-color: #E5F2F8;
+    padding: 0.5em 1em;
+    border-radius: 6px;
+}
+
+
+/* .fce  .semana a:hover {
+   background-color: #003f72;
+   color: #004170;
+}*/
+
+
+.fce .tab-semana a:hover {
+    background-color: #eaab00;
+    /*    color: #004170 !important;
+*/
+    transform: scale(1.1);
+}
+
+
+
+
+.fce .activo-semana p a {
+    background-color: #eaab00;
+    text-decoration: none;
+    transform: scale(1.1);
+}
+
+
+.fce .tab-semana p {
+    margin: 0px;
+    text-align: center;
+}
+
+
+.fce .titulo-actividad {
+    padding: 10px;
+    color: #003F72;
+    border-left: 5px solid #E1AA3B;
+    background-color: #F2F2F2;
+    width: 100%;
+    border-radius: 0px 5px 5px 0px;
+}
+
+.fce .actividad-recomendada {
+    background: #FDFAF3;
+    margin: 0;
+    padding: 15px;
+}
+
+.fce .menu-semana {
+    display: flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.fce .contenedor-semana {
+    border: 1px solid #E0DED8;
+    padding-left: 1em;
+    padding-right: 1em;
+}
+
+
+
+
+.fce .subtitulo-semana {
+    width: 100%;
+    text-align: left;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.fce .contenido {
+    position: relative;
+    width: 100%;
+    margin-top: 30px;
+}
+
+.fce .actividades {
+    display: grid;
+    grid-template-columns: 100px auto;
+    align-items: center;
+}
+
+.fce .contenido .contenido-subtitulo {
+    display: grid;
+    color: #003F72;
+    text-align: left;
+    border-left: 5px solid #E1AA3B;
+    border-radius: 0 0.5em 0.5em 0;
+    /* position: absolute; */
+    width: 99%;
+    background-color: #F2F2F2;
+    /* height: 50px; */
+    padding-left: 1em;
+    align-content: center;
+}
+
+.fce .contenido .contenido-informacion {
+    width: 97%;
+    border-left: 2px solid #F2F2F2;
+    border-right: 2px solid #F2F2F2;
+    border-bottom: 2px solid #F2F2F2;
+    padding: 0.5em 1em 1em 1em;
+    margin-bottom: 1em;
+
+}
+
+/* ==========================================================================
+  6. Tabla general
+  ========================================================================== */
+/* .fce   .contenedor-tabla {
+    overflow-x: auto;
+} */
+
+.fce table.tabla-general {
+    border-collapse: collapse;
+    width: auto;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 10pt;
+}
+
+.fce table.tabla-general caption {
+    text-align: left;
+}
+
+.fce table.tabla-general td,
+.fce table.tabla-general th {
+    padding: 8px;
+}
+
+.fce table.tabla-general th {
+    background-color: #004170;
+    color: #ffffff;
+    border: 1px solid #e9eae8;
+}
+
+.fce table.tabla-general td {
+    border: 1px solid #004170;
+}
+
+.fce table.tabla-general th p,
+.fce table.tabla-general td p {
+    margin: 0;
+}
+
+.fce table.tabla-general tr:nth-child(even) {
+    background: #e9eae8;
+}
+
+.fce table.tabla-general tr:nth-child(odd) {
+    background: #ffffff;
+}
+
+/* Pie de tabla / Nota */
+
+.fce table.tabla-general tfoot td {
+    border-left: none;
+    border-bottom: none;
+    border-right: none;
+}
+
+/* ==========================================================================
+  6. Tabla resultados
+  ========================================================================== */
+
+.fce table.tabla-resultados {
+    border-collapse: collapse;
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 12pt;
+}
+
+.fce table.tabla-resultados a {
+    color: #000000;
+}
+
+.fce table.tabla-resultados caption {
+    text-align: left;
+}
+
+.fce table.tabla-resultados td,
+.fce table.tabla-resultados th {
+    padding: 8px;
+}
+
+.fce table.tabla-resultados th {
+    background-color: #004170;
+    color: #ffffff;
+    border: 2px solid #FFFFFF;
+
+
+}
+
+.fce table.tabla-resultados td {
+    color: black;
+    background: #F2F2F2;
+    border: 2px solid #ffffff;
+}
+
+.fce table.tabla-resultados tr:hover td {
+    background: #ffffff;
+    color: #000000 !important;
+}
+
+.fce table.tabla-resultados tr:hover td a {
+    color: #0374B5 !important;
+    text-decoration: underline !important;
+}
+
+
+/*Actividades evaluadas*/
+
+.fce table.tabla-actividad caption {
+    color: #003F72;
+    font-weight: bold;
+}
+
+.fce table.tabla-actividad th {
+    background-color: #3f779f;
+    color: #ffffff;
+    width: 30%;
+}
+
+.fce table.tabla-actividad thead th {
+    font-weight: bold;
+    text-align: center;
+}
+
+.fce table.tabla-actividad tbody td {
+    padding: 4px 6px !important;
+    border: solid 1px #004170;
+    ;
+}
+
+.fce table.tabla-actividad tr:nth-child(even) {
+    background: #ffffff;
+    width: 100%;
+    border: 1px solid #E0DED8;
+}
+
+/* ==========================================================================
+  7. Tabla componentes
+  ========================================================================== 
+
+  .fce table.tabla-componentes {
+   border-collapse: collapse;
+   width: 60%;
+   margin-left: auto;
+   margin-right: auto;
+   font-size: 12pt;
+}
+
+
+  .fce table.tabla-componentes caption {
+   text-align: left;
+}
+
+
+ .fce table.tabla-componentes caption {
+   color: #000000;
+   font-weight: bold;
+}
+
+  .fce table.tabla-componentes th {
+   background-color: #004170;
+   color: #ffffff;
+   border: 1px solid #FFFFFF;
+
+}
+
+  .fce table.tabla-componentes tbody td {
+   padding: 4px 6px !important;
+   border: 1px solid #4D4D4D;
+   ;
+}
+
+  .fce table.tabla-componentes tr:nth-child(odd) {
+   background: #F2F2F2;
+   border: 1px solid #4D4D4D;
+}
+*/
+
+/* ==========================================================================
+  8. Otros estilos
+  ========================================================================== */
+
+/* ==========================================================================
+  8.1. Mensajes de informacion
+  ========================================================================== */
+
+.fce .cuadro-texto {
+    padding: 0em 1em;
+    border-radius: 5px;
+    margin: 6px auto;
+    max-width: 600px;
+}
+
+.fce .cuadro-texto.verde {
+    border: 4px solid #83cbfb;
+}
+
+.fce .cuadro-texto.azul {
+    border: 4px solid #83cbfb;
+}
+
+.fce .cuadro-texto.amarillo {
+    border: 2px solid #e2a93b;
+}
+
+.fce .cuadro-texto.naranja {
+    border: 4px solid #83cbfb;
+}
+
+
+/* ==========================================================================
+  8.2. Focalizadores
+  ========================================================================== */
+
+.fce .actividad-recomendada+.focalizador,
+.fce .contenedor-recursos+.focalizador,
+.fce .focalizador+.focalizador,
+.fce .cuadro-texto+.contenedor-recursos,
+.fce .table.tabla-general+.pre {
+    margin-top: 16px;
+}
+
+.fce .focalizador {
+    align-items: center;
+    display: grid;
+    grid-template-columns: 120px auto;
+    width: 90%;
+    background-color: #effaff;
+    padding: 0.5em;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.fce .focalizador-crs {
+    margin-left: auto;
+    margin-right: auto;
+    width: 90%;
+    background-color: rgb(255 255 255 / 54%);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    text-align: center;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3)
+}
+
+/* .fce .focalizador-lectura {
+   display: flex;
+   position: relative;
+   background: #effaff;
+   margin-top: 20px;
+   margin-bottom: 20px;
+}*/
+
+.fce .focalizador-lectura .columna1-mensaje {
+    text-align: center;
+    padding: 2px;
+    width: 10%;
+}
+
+.fce .focalizador-lectura .columna2-mensaje {
+    width: 85%;
+
+}
+
+.fce .focalizador-lectura .titulo-mensaje {
+    font-weight: bold;
+    padding: 2px;
+    border-bottom: 1px solid #003F72;
+}
+
+
+
+
+.fce .col-30-70 {
+    display: grid;
+    grid-template-columns: 30% 70%;
+    align-items: center;
+}
+
+.fce .col-70-30 {
+    display: grid;
+    gap: 1em;
+    grid-template-columns: 30% 70%;
+    align-items: center;
+}
+
+.fce .col-2 {
+    display: grid;
+    gap: 1em;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+}
+
+/* ==========================================================================
+  8.3. Accordeon principal
+  ========================================================================== */
+.fce .contenido-accordeon {
+    display: flex;
+    align-content: flex-start;
+    flex-wrap: wrap;
+    flex-direction: column-reverse;
+    padding: 1% 0%;
+
+}
+
+.fce .accordeon {
+    /*background-color: #D8DFE1 ;*/
+    border-bottom: 3px solid #003B71;
+    color: #003B71;
+    cursor: pointer;
+    padding: 8px 5px 8px 5px;
+    width: 100px;
+    text-align: left;
+    outline: none;
+    font-size: 15px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.fce .accordeon p {
+    margin: 0;
+    padding: 0;
+}
+
+
+
+.fce .accordeon:after {
+    content: '\002B';
+    font-weight: bold;
+    margin: 0;
+}
+
+
+.fce .accordeon:hover {
+    margin: 0;
+    color: #fff;
+    background-color: #003B71;
+}
+
+
+.fce .activado:hover,
+.fce .activado:hover:after {
+    content: "\2212";
+    color: #fff;
+    background-color: #003B71;
+    margin: 0;
+}
+
+.fce .activado,
+.fce .activado:after {
+    content: "\2212";
+    color: #fff;
+    background-color: #003B71;
+    margin: 0;
+}
+
+
+.fce .activado span {
+    display: none;
+}
+
+.fce .activado p:after {
+    content: "Leer menos";
+
+}
+
+.fce .panel-contenido {
+
+    max-height: 0;
+    overflow: hidden;
+    background: #FDFAF3;
+    margin-bottom: 0.4em;
+    padding: 0 1em;
+}
+
+.fce .accordeon,
+.fce .panel-contenido {
+    -webkit-transition: all 0.8s ease-in-out;
+    -moz-transition: all 0.8s ease-in-out;
+    -ms-transition: all 0.8s ease-in-out;
+    transition: all 0.8s ease-in-out;
+
+}
+
+.fce .subtitulo {
+    margin: 0;
+    font-size: 16pt;
+    color: #003F72;
+    text-align: left;
+    padding: 10px;
+}
+
+.fce .pie-pagina {
+    background-color: #F2F2F2;
+    text-align: left;
+}
+
+.fce h2,
+.fce h3,
+.fce .letra-azul-utpl {
+    color: #003F72;
+    text-align: left;
+}
+
+.fce .letra-azul-bim-utpl {
+    color: #003F72;
+    text-align: center;
+}
+
+
+.fce .vertical-foto {
+    display: flex;
+    align-items: center;
+    margin: 6% 0px;
+    background: #FBEECC;
+    border-radius: 0.5em;
+}
+
+.fce .naranja-utpl {
+    height: 200px;
+}
+
+
+.fce .vertical-centro {
+    display: flex;
+    align-items: center;
+}
+
+.fce .azul-utpl {
+    background-color: #EDEFF0;
+    text-align: left;
+}
+
+.fce .cuadro-perfil {
+    display: grid;
+    grid-template-columns: 180px auto;
+    padding: 3em;
+    margin-top: 1em;
+    align-items: center;
+}
+
+.fce .cuadro-perfil .foto {
+    position: relative;
+}
+
+.fce .cuadro-perfil .foto .imagen-perfil {
+    position: absolute;
+    top: -7em;
+    right: -3em;
+}
+
+.fce .cuadro-perfil .informacion-perfil-docente {
+    background: #FBEECC;
+    padding: 3em;
+    border-radius: 0.5em;
+}
+
+.fce .cuadro-perfil .informacion-perfil-docente h4,
+.fce .cuadro-perfil .informacion-perfil-docente p {
+    margin: 0px 10px;
+    text-align: left;
+}
+
+/* ==========================================================================
+  8.3. Accordeon texto basico
+  ========================================================================== */
+.fce .texto-basico {
+    background-color: #effaff;
+    padding: 1em;
+}
+
+
+.fce .acordeon-titulo {
+
+    color: #003B71;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    outline: none;
+    border-radius: 0.5em 0.5em 0 0;
+    border-bottom: 3px solid #003B71;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.fce .acordeon-titulo p {
+    margin: 0;
+    padding: 0.5em;
+}
+
+.fce .acordeon-titulo:after {
+    content: '\002B';
+    font-weight: bold;
+
+    margin-right: 1em;
+}
+
+.fce .activador,
+.fce .acordeon-titulo:hover {
+    background-color: #003B71;
+    color: #fff;
+    border-bottom: 3px solid #003B71;
+}
+
+.fce .activador:after {
+    content: "\2212";
+}
+
+.fce .panel-textobasico {
+    margin-top: 1em;
+    padding: 0 1em;
+    max-height: 0;
+    overflow: hidden;
+
+    /*    transition: max-height 0.2s ease-out;
+*/
+}
+
+.fce .acordeon-titulo,
+.fce .panel-textobasico {
+    -webkit-transition: all 0.8s ease-in-out;
+    -moz-transition: all 0.8s ease-in-out;
+    -ms-transition: all 0.8s ease-in-out;
+    transition: all 0.8s ease-in-out;
+}
+
+/* ==========================================================================
+  8.3. Accordeon contenido
+  ========================================================================== */
+
+.fce .acordeon-contenido {
+    color: #003B71;
+    cursor: pointer;
+    width: 60%;
+    text-align: left;
+    outline: none;
+    border-radius: 0.5em 0.5em 0 0;
+    border-bottom: 3px solid #003B71;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+
+
+.fce .acordeon-contenido p {
+    margin: 0;
+    padding: 0.5em;
+}
+
+.fce .acordeon-contenido:after {
+    content: '\002B';
+    font-weight: bold;
+
+    margin-right: 1em;
+}
+
+.fce .activador,
+.fce .acordeon-contenido:hover {
+    background-color: #003B71;
+    color: #fff;
+    border-bottom: 3px solid #003B71;
+}
+
+.fce .activador:after {
+    content: "\2212";
+}
+
+.fce .panel-cont-accordeon {
+    margin-top: 1em;
+    padding: 0 1em;
+    max-height: 0;
+    overflow: hidden;
+
+    /*    transition: max-height 0.2s ease-out;
+*/
+}
+
+.fce .acordeon-contenido,
+.fce .panel-cont-accordeon {
+    -webkit-transition: all 0.8s ease-in-out;
+    -moz-transition: all 0.8s ease-in-out;
+    -ms-transition: all 0.8s ease-in-out;
+    transition: all 0.8s ease-in-out;
+}
+
+
+/* ==========================================================================
+  9. Archivos previsualziacion
+  ========================================================================== */
+.fce .archivos {
+    margin-right: auto;
+    padding: 10px;
+    position: relative;
+    width: 650px;
+
+}
+
+/* ==========================================================================
+  10. Boton flotante
+  ========================================================================== */
+#button {
+    display: inline-block;
+    background-color: #eaab00;
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    border-radius: 4px;
+    position: fixed !important;
+    bottom: 90px;
+    right: 50px;
+    transition: background-color .3s, opacity .5s, visibility .5s;
+    opacity: 0;
+    visibility: hidden;
+    z-index: 1000;
+    text-decoration: none !important;
+}
+
+#button::after {
+    content: "\21E7";
+    font-family: FontAwesome;
+    font-weight: normal;
+    font-style: normal;
+    font-size: 2em;
+    line-height: 50px;
+    color: #fff;
+}
+
+#button:hover {
+    cursor: pointer;
+    background-color: #003f72;
+}
+
+#button:active {
+    background-color: #555;
+}
+
+#button.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+
+
+/* ==========================================================================
+   Contenedor Tablas, Imagenes y Grupo de Formulas
+  ========================================================================== */
+
+.contenedor-tabla {
+    width: 100%;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+
+.contenedor-imagen {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+.contenedor-recursos {
+    width: 100%;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+.contenedor-formulas {
+    display: flex;
+    justify-content: flex-start;
+    /* AlineaciÃƒÂ³n horizontal */
+    overflow-x: auto;
+    width: 100%;
+    /* Asegura que el contenedor ocupe todo el ancho disponible */
+    box-sizing: border-box;
+    /* Incluye padding y borde dentro del ancho */
+}
+
+.contenedor-formulas {
+    flex-shrink: 1;
+    /* Permite que los elementos hijos reduzcan su tamaÃƒÂ±o si es necesario */
+    max-width: 100%;
+
+
+}
+
+
+.contenedor-formulas.centro {
+    justify-content: center;
+    /* Alinea la tabla al centro */
+}
+
+.contenedor-formulas.derecha {
+    justify-content: flex-end;
+    /* Alinea la tabla a la derecha */
+}
+
+.tabla {
+    display: table;
+    width: auto;
+}
+
+.fila {
+    display: table-row;
+}
+
+.columna {
+    display: table-cell;
+    vertical-align: middle;
+    /* Alinea el contenido de la celda verticalmente al centro */
+    /* padding: 4px; */
+}
+
+
+.columna ul {
+    list-style-type: square;
+    /* ViÃƒÂ±etas visibles */
+    margin: 5px;
+    /* Elimina margenes */
+    padding-left: 10px;
+    /* Espaciado de vinetas */
+}
+
+.columna li {
+    margin: 5px;
+    /* Elimina margenes */
+    padding: 0;
+    /* Elimina rellenos */
+}
+
+/* Ajustes de parrafos */
+.columna p {
+    margin: 5px;
+    /* Elimina mÃƒÂ¡rgenes del texto */
+}
+
+
+.pad-r-20 {
+    padding-right: 20px;
+}
+
+.pad-r-50 {
+    padding-right: 50px;
+}
+
+
+.pad-r-100 {
+    padding-right: 100px;
+}
+
+
+/* Para tabletas (ancho entre 768px y 1024px) */
+@media (max-width: 1024px) {
+    .pad-r-20 {
+        padding-right: 15px;
+        /* Reduce el padding para tabletas */
+    }
+
+    .pad-r-50 {
+        padding-right: 25px;
+        /* Reduce el padding para tabletas */
+    }
+
+    .pad-r-100 {
+        padding-right: 50px;
+        /* Ajuste proporcional */
+    }
+}
+
+/* Para celulares (ancho menor o igual a 768px) */
+@media (max-width: 768px) {
+    .pad-r-20 {
+        padding-right: 10px;
+        /* Reduce el padding aÃƒÂºn mÃƒÂ¡s para celulares */
+    }
+
+    .pad-r-50 {
+        padding-right: 15px;
+        /* Ajuste para pantallas pequeÃƒÂ±as */
+    }
+
+    .pad-r-100 {
+        padding-right: 20px;
+        /* Ajuste para mantener una buena separaciÃƒÂ³n */
+    }
+}
+
+
+/* @media (max-width: 768px) {
+    .tabla {
+        display: block; 
+        width: 100%;
+    }
+
+    .fila {
+        display: block; 
+        width: 100%;
+    }
+
+    .columna {
+        display: block; 
+        width: 100%; 
+        padding: 10px 0;
+        text-align: left; 
+    }
+} */
+
+
+
+
+/* ==========================================================================
+  12. Media Query
+  ========================================================================== */
+
+@media screen and (max-width: 540px) {
+    .fce .fondo-bienvenida {
+        height: auto;
+    }
+
+    .fce .figura-benner {
+        width: 98%;
+        padding: 1%;
+    }
+
+    .fce .video {
+        width: 100%;
+        height: auto;
+    }
+
+    .fce .contenido-ventana {
+        width: 75%;
+    }
+
+    .fce .icono-contexto {
+        display: none;
+    }
+
+    .fce .cuadro-perfil {
+        padding: 0;
+        margin-bottom: 2em;
+    }
+
+    .fce .cuadro-perfil .informacion-perfil-docente h4,
+    .fce .cuadro-perfil .informacion-perfil-docente p {
+        margin: 0px 60px;
+        text-align: left;
+    }
+
+    .fce .cuadro-perfil .informacion-perfil-docente {
+        padding: 1em 0 1em 0.5em;
+    }
+
+    /*------MENU PRINCIPAL--------*/
+    .fce .menu-principal {
+        display: block;
+
+    }
+
+    .fce .menu-principal a:not(:first-child) {
+        display: none;
+    }
+
+    .fce .menu-principal a.icon {
+        display: block;
+        text-align: right;
+        width: auto;
+        border-radius: 12px;
+    }
+
+    .fce .menu-principal.responsive .icon {
+        right: 0;
+        text-align: right;
+    }
+
+    .fce .menu-principal.responsive a {
+        float: none;
+        display: block;
+        width: auto;
+        border-radius: 12px;
+
+
+    }
+
+    .fce .menu-principal a:hover {
+        transform: scale(1.0);
+    }
+
+
+    .fce .menu-principal a.active {
+        background-color: #EAAB00;
+        transform: scale(1.0);
+    }
+
+    /*
+     .boton-ocultar {
+       top: 0px;
+       right: 0px;
+   }*/
+
+    .fce .contenido-tabla {
+        margin-top: 2em;
+
+    }
+
+    .fce table.tabla-resultados {
+        width: auto;
+    }
+
+
+    .fce table.tabla-resultados td,
+    .fce table.tabla-resultados th {
+        padding: 0px;
+    }
+
+    .fce .contenido-principal {
+        margin-left: 0;
+    }
+
+    /*------FIN MENU PRINCIPAL--------*/
+
+
+    .fce .columna-100-movil {
+
+        margin: 10px;
+
+    }
+
+    .fce .columna-75-movil {
+        width: auto;
+        margin: 10px;
+
+    }
+
+    .fce .contenedor-subtitulo {
+        height: auto;
+        display: block;
+    }
+
+    .fce .contenido {
+        width: 96%;
+        display: inline-block;
+    }
+
+    .fce .naranja-utpl {
+        display: block;
+        height: 100%;
+    }
+
+    .fce .contenido .contenido-informacion {
+        width: 93%;
+    }
+
+    .fce .imagen-movil {
+        width: 100%;
+    }
+
+    .fce .contenido-actividad .resultado {
+        margin-top: 2.5em;
+    }
+
+    .fce .fondo-semana1,
+    .fce .fondo-semana2 {
+        height: 3em;
+    }
+
+    .fce .focalizador {
+        padding: 0;
+    }
+
+    .fce .cuadro,
+    .cuadro-v {
+        margin-bottom: 3.5em;
+    }
+
+    .fce .actividad {
+        width: 90%;
+        transform: translate(0px, -75px);
+    }
+
+    .fce .cuadro a,
+    .fce .cuadro a {
+        margin-top: 1.5em;
+    }
+
+    .fce .contenedor-flex {
+        display: inline-block;
+    }
+
+}
+
+/* ==========================================================================
+11. Dark Mode (solo movile)
+========================================================================== */
+/* @media (prefers-color-scheme: dark) {
+
+  .fce .contenedor-recurso .estilo-enlace a,
+      img {
+        background-color: #FFFFFF;
+    }
+
+    .fce .letra-azul-bim-utpl,
+    .fce .letra-azul-utpl,
+    .fce .acordeon-titulo,
+    .fce .cuadro a,
+    .fce .accordeon,
+    .fce .accordeon:after {
+        color: #FFFFFF;
+    }
+
+    .fce table.tabla-general td,
+    .fce .cuadro-perfil,
+    .fce .texto-basico,
+    .fce .azul-utpl,
+    .fce .focalizador,
+    .fce .cont-accordeon   .actividad-recomendada {
+        color: #003F72;
+    }
+
+    .fce  .cuadro-perfil img {
+        background: none;
+    }
+
+    .fce  .panel-contenido {
+        color: #000000;
+    } 
+} */
+</script>
+<script type="text/plain" id="css-movil">
+/*
+* Descripcion: hoja de estilos para las metacursos rediseno de UTPL MAD.
+* Ultima actualizacion: 03/12/2020
+* Autor: Ediloja Digital
+*
+* Contenido:
+*
+*    0. Estilos generales
+*    1. Multiples planes docentes
+*    2. Modal
+*    3. Grid
+*    4. Menu principal
+*    5. Resultados de aprendizaje
+*    6. Tabla general
+*    7. Tabla de componentes
+*    8. Otros estilos
+*    9. Previsualziacion
+*    10. Boton flotante
+*    11.Media Query 
+*    12.Dark Mode 
+*/
+
+
+
+/* ==========================================================================
+  0. Estilos generales
+  ========================================================================== */
+
+.fce .contenedor-principal {
+    padding: 0;
+    margin: 15px 0;
+}
+
+.fce .contenedor-flex {
+    display: flex;
+    justify-content: space-evenly;
+    width: 100%;
+}
+
+.fce .contenedor-filas {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.fce .contorno {
+    background-color: #003f72;
+    height: auto;
+    padding: 10px;
+}
+
+.fce .figura-benner {
+    width: 50%;
+    padding: 1%;
+}
+
+.fce .separador {
+    border-top: #CCCCCC solid 2px !important;
+    margin: 10px 0px;
+}
+
+
+.fce .contenedor-recurso .estilo-enlace a {
+    display: grid;
+    width: 120px;
+    height: 120px;
+    box-shadow: 0 0 0.9em #a6a7a8;
+    margin-right: 2em;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    position: relative;
+    border-radius: 0.6em;
+    transition: background-color 0.8s ease;
+    text-decoration: none !important;
+    color: #153B6D;
+    align-items: flex-end;
+}
+
+.fce .contenedor-recurso .estilo-enlace {
+    padding: 0;
+    margin: 0;
+}
+
+.fce .active .mostrar-modal {
+    background: #004170 !important;
+    color: #ffffff !important;
+}
+
+.fce .active .imagen-frontal {
+    opacity: 0;
+}
+
+
+.fce .contenedor-recurso .estilo-enlace a:hover {
+    background-color: #004170;
+    color: #ffffff;
+}
+
+
+
+.fce .contenedor-recurso .imagen {
+    position: absolute;
+    top: -2em;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+}
+
+.fce .contenedor-recurso .estilo-enlace a span {
+
+    margin: auto;
+    line-height: 80%;
+}
+
+.fce .contenedor-recurso .estilo-enlace .imagen-frontal {
+    z-index: 10;
+}
+
+.fce .contenedor-recurso a:hover .imagen-frontal {
+    opacity: 0;
+}
+
+.fce .contenedor-subtitulo {
+    width: 100%;
+    color: #003F72;
+    text-align: left;
+    margin: 0px;
+    background-color: #F2F2F2;
+    padding-left: 1em;
+    border-left: 5px solid #E1AA3B;
+    border-radius: 0px 10px 10px 0px;
+}
+
+.fce .contenido-centrado {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.fce .contenido-principal {
+    margin-left: 6em;
+}
+
+
+.fce .fondo-semana1 {
+    background-image: url(https://ediloja.com/Virtualizacion/Pregrado/bannerlinea.png);
+    background-size: 100%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+    height: 180px;
+    background-attachment: inherit;
+}
+
+.fce .fondo-semana9 {
+    background-image: url(https://ediloja.com/Virtualizacion/Pregrado/bannerlinea.png);
+    background-size: 100%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+    height: 180px;
+    background-attachment: inherit;
+}
+
+.fce .fondo-bienvenida {
+    background-image: url(https://ediloja.com/Virtualizacion/Pregrado/Banner_Bienvenida%20al%20curso%20en%20linea.png);
+    background-size: 100%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+    height: 100px;
+    background-attachment: inherit;
+}
+
+
+.fce #fotoPerfil {
+    min-width: 5em;
+    min-height: 5em;
+    border-radius: 2em;
+}
+
+.fce pre {
+    word-break: normal;
+}
+
+.fce .referencias p {
+    margin-left: 2em;
+    text-indent: -2em;
+}
+
+/* ==========================================================================
+  1. Pagina de creditos
+  ========================================================================== */
+
+.fce .contenedor-licencia {
+    background-color: #e0dedc;
+    padding: 10px;
+    margin-top: 40px;
+}
+
+.fce .contenedor-licencia p.imagen-licencia {
+    margin-top: -40px;
+}
+
+.fce .contenedor-licencia p img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ==========================================================================
+  1. Multiples planes docentes
+  ========================================================================== */
+
+.fce .acorh {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    width: 8em;
+    margin-right: 1.7em;
+}
+
+.fce .acorh:hover .lista-planes {
+    display: block;
+
+}
+
+.fce .acorh:hover .estilo-enlace a {
+    background-color: #004170;
+    color: #ffffff;
+}
+
+.fce .acorh:hover .estilo-enlace a .imagen-frontal {
+    opacity: 0;
+}
+
+
+.fce .lista-planes {
+
+    margin-top: -10px;
+    padding: 0;
+    width: 8em;
+    text-align: center;
+    display: none;
+}
+
+.fce .lista-planes p {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+
+.fce .lista-planes a {
+    display: block;
+    text-decoration: none !important;
+    padding: 8px 8px 8px 8px;
+    color: #000;
+    border: 0;
+    box-sizing: border-box;
+    border-bottom: 1px solid #ccc;
+    transition: background-color 0.8s ease;
+}
+
+.fce .lista-planes a:hover {
+    background-color: #004170;
+    color: #ffffff !important;
+}
+
+/*  ul.acorh,
+  ul.acorh * {
+   margin: 0;
+   padding: 0;
+   border: 0;
+}
+
+  ul.acorh {
+   margin: 10px 0 0 0;
+   padding: 0;
+   list-style: none;
+   width: 100%;
+}
+
+  ul.acorh li {
+   list-style: none;
+}
+
+  ul.acorh li a {
+   display: block;
+   padding: 8px 8px 8px 8px;
+   box-sizing: border-box;
+}
+
+  ul.acorh li ul {
+   max-height: 0;
+   margin: 0;
+   padding: 0;
+   list-style: none;
+   overflow: hidden;
+   transition: .3s all ease-in;
+}
+
+  ul.acorh li li a {
+   padding: 8px 8px 8px 8px;
+  background-color: #004170;
+   color: #ffffff;
+   border: 0;
+   border-bottom: 1px solid #ccc;
+   box-sizing: border-box;
+}
+
+  ul.acorc li li:last-child a {
+   border-bottom: 0;
+}
+
+  ul.acorc li li:last-child a {
+   margin:0;
+}
+
+  ul.acorh li:hover ul {
+   max-height: 300px;
+   overflow: auto;
+   transition: .3s all ease-in;
+}
+
+  ul.acorh li a:hover,
+  ul.acorh li p:hover a {
+    background-color: #004170;
+   color: #ffffff;
+}
+*/
+
+/* ==========================================================================
+  2. Modal
+  ========================================================================== */
+
+.fce .ventana-emergente {
+    display: none;
+    position: fixed !important;
+    z-index: 11;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.fce .ventana-emergente-requisitos {
+    display: none;
+    position: fixed !important;
+    z-index: 11;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgb(0, 0, 0);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.fce .contenido-ventana {
+    background-color: #fefefe;
+    padding: 20px;
+    border: 2px solid #888;
+    width: 20%;
+    margin: auto;
+    -webkit-box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    -moz-box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    position: relative;
+}
+
+.fce .boton-cerrar {
+    height: 40px;
+    width: 40px;
+    padding: 0;
+    border-radius: 50px;
+    cursor: pointer;
+    float: right;
+    font-size: 28px;
+    color: #ffffff;
+    background-color: #C1272D;
+    -moz-border-radius: 50px;
+    -webkit-border-radius: 50px;
+    position: absolute;
+    right: -11px;
+    top: -18px;
+    text-align: center;
+}
+
+.fce .boton-cerrar-requisitos {
+    height: 40px;
+    width: 40px;
+    padding: 0;
+    border-radius: 50px;
+    cursor: pointer;
+    float: right;
+    font-size: 28px;
+    color: #ffffff;
+    background-color: #C1272D;
+    -moz-border-radius: 50px;
+    -webkit-border-radius: 50px;
+    position: absolute;
+    right: -11px;
+    top: -18px;
+    text-align: center;
+}
+
+
+/* ==========================================================================
+  3. Grid
+  ========================================================================== */
+
+.fce .columna-15 {
+    width: 13%;
+    margin: 1%;
+}
+
+.fce .columna-20 {
+    display: grid;
+}
+
+.fce .columna-25 {
+    width: 23%;
+    margin: 1%;
+}
+
+.fce .columna-30 {
+    width: 28%;
+    margin: 1%;
+}
+
+.fce .columna-50 {
+    width: 47%;
+    margin: 1%;
+}
+
+.fce .columna-70 {
+    width: 68%;
+    margin: 1%;
+}
+
+.fce .columna-75 {
+    width: 73%;
+    margin: 1%;
+}
+
+.fce .columna-80 {
+    width: 78%;
+    margin: 1%;
+}
+
+.fce .columna-85 {
+    width: 83%;
+    margin: 1%;
+}
+
+.fce .columna-100 {
+
+    width: 98%;
+    margin-bottom: 3em;
+
+}
+
+/* ==========================================================================
+  4. Menu principal
+  ========================================================================== */
+
+.fce .menu-principal {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.fce .menu-principal a {
+    width: 12.5em;
+    padding: 0.7em 1em;
+    margin: 1px 1px 0 0;
+    color: #001A67;
+    background-color: #E5F2F8;
+    text-align: center;
+    line-height: 100%;
+    text-decoration: none !important;
+    transition: all 0.8s ease;
+    display: grid;
+    align-items: center;
+    border-radius: 0.4em;
+    font-weight: bold;
+}
+
+.fce .menu-principal a:hover {
+    transform: scaleY(1.1);
+    background-color: #EAAB00;
+
+}
+
+.fce .menu-principal .active {
+    transform: scaleY(1.1);
+    background-color: #EAAB00;
+}
+
+.fce .menu-principal .icon {
+    display: none;
+    text-align: center;
+}
+
+/* Boton */
+
+.fce .boton-mas {
+    display: inline-block;
+    color: #092157;
+    background-color: #f2f2f2;
+    text-decoration: none !important;
+    padding-left: 1em;
+    border-radius: 2em;
+    border-bottom: 2px solid #cccccc;
+    transition: all .2s ease-in-out;
+}
+
+.fce .boton-mas:hover {
+    background-color: #cccccc;
+    transform: scale(1.15);
+}
+
+/* Icono de actividades (RA) */
+
+.fce .mostrar-actividades {
+    display: none;
+    position: fixed !important;
+    z-index: 11;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgb(0, 0, 0);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.fce .contenido-tabla {
+    background-color: #fefefe;
+    padding: 20px;
+    border: 2px solid #888;
+    margin: auto;
+    -webkit-box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    -moz-box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    box-shadow: 3px 3px 5px 0px rgba(51, 51, 51, 1);
+    color: #333333;
+    position: relative;
+    width: 80%;
+}
+
+.fce .contenido-actividad {
+    position: relative;
+    transition: background 0.8s ease;
+}
+
+
+.fce .contenido-actividad a {
+
+    color: black;
+}
+
+.fce .actividad {
+    z-index: 1;
+    color: black;
+    margin: 0;
+    width: 19em;
+    border: 1px solid #004170;
+    background: #f0f8ff;
+    padding: 0.5em;
+    position: absolute;
+    transform: translate(0px, -17px);
+
+}
+
+.fce .actividad:hover {
+    color: #fff;
+    /* color de fuente hover */
+}
+
+.fce .actividad::after {
+    content: "";
+    background: #004170;
+    /* color de fondo hover */
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    -webkit-transition: all 0.5s;
+    transition: all 0.5s;
+    visibility: hidden;
+}
+
+.fce .actividad:hover::after {
+    left: 0;
+    right: -1px;
+    top: 0;
+    bottom: 0;
+    -webkit-transition: all 0.5s;
+    transition: all 0.5s;
+    visibility: visible;
+}
+
+.fce .boton-mostrar {
+    cursor: pointer;
+
+}
+
+
+.fce .activar {
+    background: #004170 !important;
+    color: #ffffff !important;
+    border-radius: 5px;
+}
+
+
+/*  .activar-cuadro {
+    border-left: 1.5px solid  #004170;
+ border-right: 1.5px solid #004170;
+ box-shadow: 0 0 0.9em #a6a7a8;
+ -webkit-transition: all 0.8s;
+ transition: all 0.8s;
+}
+
+  .activar-cuadro a{
+     color: #0374B5 !important;
+   text-decoration: underline !important;
+}
+*/
+
+.fce .cuadro {
+    margin: 0;
+    padding: 0;
+    border: 1.5px solid #5D6D7E;
+    border-radius: 5px;
+    position: relative;
+    -webkit-transition: all 2.5s;
+    transition: all 2.5s;
+
+}
+
+.fce .cuadro a {
+    transition: color 0.8s;
+    display: grid;
+    text-decoration: none !important;
+    position: relative;
+    border-radius: 10px;
+    align-content: center;
+    padding: 1.5em;
+    line-height: 1em;
+
+}
+
+.fce .cuadro p {
+    padding: 0;
+    margin: 0;
+}
+
+.fce .cuadro:hover {
+    color: #fff;
+    /* color de fuente hover */
+}
+
+.fce .cuadro::after {
+    content: "";
+    background: #004170;
+    /* color de fondo hover */
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    -webkit-transition: all 0.5s;
+    transition: all 0.5s;
+    visibility: hidden;
+}
+
+.fce .cuadro:hover::after {
+    left: -1px;
+    right: -1px;
+    top: -1px;
+    bottom: -1px;
+    border-radius: 5px;
+    -webkit-transition: all 0.5s;
+    transition: all 0.5s;
+    visibility: visible;
+}
+
+.fce .cuadro:hover a {
+    color: #ffffff !important;
+    text-decoration: none !important;
+    transition: color 0.8s;
+}
+
+/*
+  .cuadro:hover{
+ border-left: 1.5px solid  #004170;
+ border-right: 1.5px solid #004170;
+ box-shadow: 0 0 0.9em #a6a7a8;
+ -webkit-transition: all 0.8s;
+ transition: all 0.8s;
+
+}*/
+
+/*  .cuadro:after {
+ content: "";
+ color:#ffffff;
+ background: #004170; /* color de fondo hover
+ position: absolute;
+ z-index: -1;
+
+ display: block;
+ left: 0;
+ right: 0;
+ 
+ bottom: 100%;
+ -webkit-transition: all 0.35s;
+ transition: all 0.35s;
+ visibility: hidden;
+}
+  .cuadro:hover::after {
+ left: 0;
+ right: 0;
+ top: 0;
+ bottom: 0;
+ -webkit-transition: all 0.35s;
+ transition: all 0.8s;
+ visibility: visible;
+}
+
+  .cuadro:hover a{
+    color: #ffffff;
+}
+
+  .cuadro:hover{
+    color: #ffffff;
+}*/
+
+.fce .boton-ocultar {
+    height: 40px;
+    width: 40px;
+    padding: 0;
+    border-radius: 50px;
+    cursor: pointer;
+    float: right;
+    font-size: 28px;
+    color: #ffffff;
+    background-color: #C1272D;
+    -moz-border-radius: 50px;
+    -webkit-border-radius: 50px;
+    position: absolute;
+    right: -11px;
+    top: -18px;
+    text-align: center;
+}
+
+.fce .contenido-actividad .resultado-contenido {
+    color: #333333;
+    text-align: left;
+}
+
+.fce .imagen-mostrar-ocultar {
+    margin-left: 10px;
+}
+
+.fce .boton-secundario a {
+    text-decoration: none !important;
+    color: #ffffff;
+    background: #003f72;
+    border-radius: 6px;
+    display: inline-block;
+    padding: 6px 10px;
+    margin: 5px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid #ffffff;
+
+}
+
+.fce .boton-secundario a:hover {
+    background-color: #eaab00;
+    color: #153B6D;
+    font-weight: bold;
+}
+
+.fce .boton-ac a {
+    text-decoration: none !important;
+    color: #001A67;
+    background: #E5F2F8;
+    border-radius: 6px;
+    display: inline-block;
+    padding: 6px 10px;
+    margin: 5px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid #ffffff;
+
+}
+
+.fce .boton-ac a:hover {
+    background-color: #EAAB00;
+    color: #153B6D;
+    font-weight: bold;
+}
+
+.fce .boton-desafios {
+    position: relative;
+    -webkit-transition: all 2.5s;
+    transition: all 2.5s;
+    cursor: pointer;
+
+    margin: auto;
+    padding: 0;
+    width: fit-content;
+
+
+}
+
+
+.fce .boton-desafios a {
+    position: relative;
+    border-radius: 6px;
+    align-items: center;
+    justify-content: center;
+    display: inline-block;
+    text-align: center;
+    text-decoration: none !important;
+
+}
+
+.fce .boton-desafios a:focus {
+    outline-style: none !important;
+}
+
+.fce .boton-desafios a:hover::before,
+.fce .boton-desafios a:hover::after {
+    display: block;
+    content: '';
+    position: absolute;
+    width: 6.2em;
+    height: 6.2em;
+    background: #001A67;
+    border-radius: 50%;
+    z-index: -1;
+    animation: 2s clockwise infinite;
+}
+
+.fce .boton-desafios a:hover:after {
+    background: #eaab00;
+    animation: 2s counterclockwise infinite;
+}
+
+@keyframes clockwise {
+    0% {
+        top: -3px;
+        left: 0;
+    }
+
+    12% {
+        top: -2px;
+        left: 2px;
+    }
+
+    25% {
+        top: 0;
+        left: 3px;
+    }
+
+    37% {
+        top: 2px;
+        left: 2px;
+    }
+
+    50% {
+        top: 3px;
+        left: 0;
+    }
+
+    62% {
+        top: 2px;
+        left: -2px;
+    }
+
+    75% {
+        top: 0;
+        left: -3px;
+    }
+
+    87% {
+        top: -2px;
+        left: -2px;
+    }
+
+    100% {
+        top: -3px;
+        left: 0;
+    }
+}
+
+@keyframes counterclockwise {
+    0% {
+        top: -3px;
+        right: 0;
+    }
+
+    12% {
+        top: -2px;
+        right: 2px;
+    }
+
+    25% {
+        top: 0;
+        right: 3px;
+    }
+
+    37% {
+        top: 2px;
+        right: 2px;
+    }
+
+    50% {
+        top: 3px;
+        right: 0;
+    }
+
+    62% {
+        top: 2px;
+        right: -2px;
+    }
+
+    75% {
+        top: 0;
+        right: -3px;
+    }
+
+    87% {
+        top: -2px;
+        right: -2px;
+    }
+
+    100% {
+        top: -3px;
+        right: 0;
+    }
+}
+
+
+
+.fce .active2 a {
+    background-color: #eaab00 !important;
+    color: #153B6D !important;
+    font-weight: bold;
+}
+
+
+
+
+/* ==========================================================================
+  5. Resultados de aprendizaje
+  ========================================================================== */
+
+.fce .icono-contexto {
+    height: 60px;
+    width: 60px;
+    color: #003F72;
+    padding: 0.4em;
+
+}
+
+
+.fce .amarrillo-utpl {
+    background-color: #eaab00;
+    padding: 10px;
+    margin: 0px;
+    color: #001A67;
+    position: absolute;
+    right: 0;
+    z-index: 2;
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+.fce .amarrillo-utpl a {
+    color: #004170;
+    text-decoration: none !important;
+}
+
+.fce .semana {
+    border-right: 3px solid #003f72;
+    margin: 10px;
+    padding: 5px;
+    width: 100px;
+    color: #003f72;
+    text-decoration: none !important;
+}
+
+
+.fce .tab-semana p a {
+    margin: 1px 1px 0 0;
+    color: #001A67;
+    text-align: center;
+    text-decoration: none !important;
+    font-weight: bold;
+    transition: all 0.8s ease;
+    float: left;
+    margin-top: 10px;
+    margin-right: 2px;
+    background-color: #E5F2F8;
+    padding: 0.5em 1em;
+    border-radius: 6px;
+}
+
+
+/* .fce  .semana a:hover {
+   background-color: #003f72;
+   color: #004170;
+}*/
+
+
+.fce .tab-semana a:hover {
+    background-color: #eaab00;
+    /*    color: #004170 !important;
+*/
+    transform: scale(1.1);
+}
+
+
+
+
+.fce .activo-semana p a {
+    background-color: #eaab00;
+    text-decoration: none;
+    transform: scale(1.1);
+}
+
+
+.fce .tab-semana p {
+    margin: 0px;
+    text-align: center;
+}
+
+
+.fce .titulo-actividad {
+    padding: 10px;
+    color: #003F72;
+    border-left: 5px solid #E1AA3B;
+    background-color: #F2F2F2;
+    width: 100%;
+    border-radius: 0px 5px 5px 0px;
+}
+
+.fce .actividad-recomendada {
+    background: #FDFAF3;
+    margin: 0;
+    padding: 15px;
+}
+
+.fce .menu-semana {
+    display: flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.fce .contenedor-semana {
+    border: 1px solid #E0DED8;
+    padding-left: 1em;
+    padding-right: 1em;
+}
+
+
+
+
+.fce .subtitulo-semana {
+    width: 100%;
+    text-align: left;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.fce .contenido {
+    position: relative;
+    width: 100%;
+    margin-top: 30px;
+}
+
+.fce .actividades {
+    display: grid;
+    grid-template-columns: 100px auto;
+    align-items: center;
+}
+
+.fce .contenido .contenido-subtitulo {
+    display: grid;
+    color: #003F72;
+    text-align: left;
+    border-left: 5px solid #E1AA3B;
+    border-radius: 0 0.5em 0.5em 0;
+    /* position: absolute; */
+    width: 99%;
+    background-color: #F2F2F2;
+    /* height: 50px; */
+    padding-left: 1em;
+    align-content: center;
+}
+
+.fce .contenido .contenido-informacion {
+    width: 97%;
+    border-left: 2px solid #F2F2F2;
+    border-right: 2px solid #F2F2F2;
+    border-bottom: 2px solid #F2F2F2;
+    padding: 0.5em 1em 1em 1em;
+    margin-bottom: 1em;
+
+}
+
+/* ==========================================================================
+  6. Tabla general
+  ========================================================================== */
+/* .fce   .contenedor-tabla {
+    overflow-x: auto;
+} */
+
+.fce table.tabla-general {
+    border-collapse: collapse;
+    width: auto;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 10pt;
+}
+
+.fce table.tabla-general caption {
+    text-align: left;
+}
+
+.fce table.tabla-general td,
+.fce table.tabla-general th {
+    padding: 8px;
+}
+
+.fce table.tabla-general th {
+    background-color: #004170;
+    color: #ffffff;
+    border: 1px solid #e9eae8;
+}
+
+.fce table.tabla-general td {
+    border: 1px solid #004170;
+}
+
+.fce table.tabla-general th p,
+.fce table.tabla-general td p {
+    margin: 0;
+}
+
+.fce table.tabla-general tr:nth-child(even) {
+    background: #e9eae8;
+}
+
+.fce table.tabla-general tr:nth-child(odd) {
+    background: #ffffff;
+}
+
+/* Pie de tabla / Nota */
+
+.fce table.tabla-general tfoot td {
+    border-left: none;
+    border-bottom: none;
+    border-right: none;
+}
+
+/* ==========================================================================
+  6. Tabla resultados
+  ========================================================================== */
+
+.fce table.tabla-resultados {
+    border-collapse: collapse;
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 12pt;
+}
+
+.fce table.tabla-resultados a {
+    color: #000000;
+}
+
+.fce table.tabla-resultados caption {
+    text-align: left;
+}
+
+.fce table.tabla-resultados td,
+.fce table.tabla-resultados th {
+    padding: 8px;
+}
+
+.fce table.tabla-resultados th {
+    background-color: #004170;
+    color: #ffffff;
+    border: 2px solid #FFFFFF;
+
+
+}
+
+.fce table.tabla-resultados td {
+    color: black;
+    background: #F2F2F2;
+    border: 2px solid #ffffff;
+}
+
+.fce table.tabla-resultados tr:hover td {
+    background: #ffffff;
+    color: #000000 !important;
+}
+
+.fce table.tabla-resultados tr:hover td a {
+    color: #0374B5 !important;
+    text-decoration: underline !important;
+}
+
+
+/*Actividades evaluadas*/
+
+.fce table.tabla-actividad caption {
+    color: #003F72;
+    font-weight: bold;
+}
+
+.fce table.tabla-actividad th {
+    background-color: #3f779f;
+    color: #ffffff;
+    width: 30%;
+}
+
+.fce table.tabla-actividad thead th {
+    font-weight: bold;
+    text-align: center;
+}
+
+.fce table.tabla-actividad tbody td {
+    padding: 4px 6px !important;
+    border: solid 1px #004170;
+    ;
+}
+
+.fce table.tabla-actividad tr:nth-child(even) {
+    background: #ffffff;
+    width: 100%;
+    border: 1px solid #E0DED8;
+}
+
+/* ==========================================================================
+  7. Tabla componentes
+  ========================================================================== 
+
+  .fce table.tabla-componentes {
+   border-collapse: collapse;
+   width: 60%;
+   margin-left: auto;
+   margin-right: auto;
+   font-size: 12pt;
+}
+
+
+  .fce table.tabla-componentes caption {
+   text-align: left;
+}
+
+
+ .fce table.tabla-componentes caption {
+   color: #000000;
+   font-weight: bold;
+}
+
+  .fce table.tabla-componentes th {
+   background-color: #004170;
+   color: #ffffff;
+   border: 1px solid #FFFFFF;
+
+}
+
+  .fce table.tabla-componentes tbody td {
+   padding: 4px 6px !important;
+   border: 1px solid #4D4D4D;
+   ;
+}
+
+  .fce table.tabla-componentes tr:nth-child(odd) {
+   background: #F2F2F2;
+   border: 1px solid #4D4D4D;
+}
+*/
+
+/* ==========================================================================
+  8. Otros estilos
+  ========================================================================== */
+
+/* ==========================================================================
+  8.1. Mensajes de informacion
+  ========================================================================== */
+
+.fce .cuadro-texto {
+    padding: 0em 1em;
+    border-radius: 5px;
+    margin: 6px auto;
+    max-width: 600px;
+}
+
+.fce .cuadro-texto.verde {
+    border: 4px solid #83cbfb;
+}
+
+.fce .cuadro-texto.azul {
+    border: 4px solid #83cbfb;
+}
+
+.fce .cuadro-texto.amarillo {
+    border: 2px solid #e2a93b;
+}
+
+.fce .cuadro-texto.naranja {
+    border: 4px solid #83cbfb;
+}
+
+
+/* ==========================================================================
+  8.2. Focalizadores
+  ========================================================================== */
+
+.fce .actividad-recomendada+.focalizador,
+.fce .contenedor-recursos+.focalizador,
+.fce .focalizador+.focalizador,
+.fce .cuadro-texto+.contenedor-recursos,
+.fce .table.tabla-general+.pre {
+    margin-top: 16px;
+}
+
+.fce .focalizador {
+    align-items: center;
+    display: grid;
+    grid-template-columns: 120px auto;
+    width: 90%;
+    background-color: #effaff;
+    padding: 0.5em;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.fce .focalizador-crs {
+    margin-left: auto;
+    margin-right: auto;
+    width: 90%;
+    background-color: rgb(255 255 255 / 54%);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    text-align: center;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3)
+}
+
+/* .fce .focalizador-lectura {
+   display: flex;
+   position: relative;
+   background: #effaff;
+   margin-top: 20px;
+   margin-bottom: 20px;
+}*/
+
+.fce .focalizador-lectura .columna1-mensaje {
+    text-align: center;
+    padding: 2px;
+    width: 10%;
+}
+
+.fce .focalizador-lectura .columna2-mensaje {
+    width: 85%;
+
+}
+
+.fce .focalizador-lectura .titulo-mensaje {
+    font-weight: bold;
+    padding: 2px;
+    border-bottom: 1px solid #003F72;
+}
+
+
+
+
+.fce .col-30-70 {
+    display: grid;
+    grid-template-columns: 30% 70%;
+    align-items: center;
+}
+
+.fce .col-70-30 {
+    display: grid;
+    gap: 1em;
+    grid-template-columns: 30% 70%;
+    align-items: center;
+}
+
+.fce .col-2 {
+    display: grid;
+    gap: 1em;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+}
+
+/* ==========================================================================
+  8.3. Accordeon principal
+  ========================================================================== */
+.fce .contenido-accordeon {
+    display: flex;
+    align-content: flex-start;
+    flex-wrap: wrap;
+    flex-direction: column-reverse;
+    padding: 1% 0%;
+
+}
+
+.fce .accordeon {
+    /*background-color: #D8DFE1 ;*/
+    border-bottom: 3px solid #003B71;
+    color: #003B71;
+    cursor: pointer;
+    padding: 8px 5px 8px 5px;
+    width: 100px;
+    text-align: left;
+    outline: none;
+    font-size: 15px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.fce .accordeon p {
+    margin: 0;
+    padding: 0;
+}
+
+
+
+.fce .accordeon:after {
+    content: '\002B';
+    font-weight: bold;
+    margin: 0;
+}
+
+
+.fce .accordeon:hover {
+    margin: 0;
+    color: #fff;
+    background-color: #003B71;
+}
+
+
+.fce .activado:hover,
+.fce .activado:hover:after {
+    content: "\2212";
+    color: #fff;
+    background-color: #003B71;
+    margin: 0;
+}
+
+.fce .activado,
+.fce .activado:after {
+    content: "\2212";
+    color: #fff;
+    background-color: #003B71;
+    margin: 0;
+}
+
+
+.fce .activado span {
+    display: none;
+}
+
+.fce .activado p:after {
+    content: "Leer menos";
+
+}
+
+.fce .panel-contenido {
+
+    max-height: 0;
+    overflow: hidden;
+    background: #FDFAF3;
+    margin-bottom: 0.4em;
+    padding: 0 1em;
+}
+
+.fce .accordeon,
+.fce .panel-contenido {
+    -webkit-transition: all 0.8s ease-in-out;
+    -moz-transition: all 0.8s ease-in-out;
+    -ms-transition: all 0.8s ease-in-out;
+    transition: all 0.8s ease-in-out;
+
+}
+
+.fce .subtitulo {
+    margin: 0;
+    font-size: 16pt;
+    color: #003F72;
+    text-align: left;
+    padding: 10px;
+}
+
+.fce .pie-pagina {
+    background-color: #F2F2F2;
+    text-align: left;
+}
+
+.fce h2,
+.fce h3,
+.fce .letra-azul-utpl {
+    color: #003F72;
+    text-align: left;
+}
+
+.fce .letra-azul-bim-utpl {
+    color: #003F72;
+    text-align: center;
+}
+
+
+.fce .vertical-foto {
+    display: flex;
+    align-items: center;
+    margin: 6% 0px;
+    background: #FBEECC;
+    border-radius: 0.5em;
+}
+
+.fce .naranja-utpl {
+    height: 200px;
+}
+
+
+.fce .vertical-centro {
+    display: flex;
+    align-items: center;
+}
+
+.fce .azul-utpl {
+    background-color: #EDEFF0;
+    text-align: left;
+}
+
+.fce .cuadro-perfil {
+    display: grid;
+    grid-template-columns: 180px auto;
+    padding: 3em;
+    margin-top: 1em;
+    align-items: center;
+}
+
+.fce .cuadro-perfil .foto {
+    position: relative;
+}
+
+.fce .cuadro-perfil .foto .imagen-perfil {
+    position: absolute;
+    top: -7em;
+    right: -3em;
+}
+
+.fce .cuadro-perfil .informacion-perfil-docente {
+    background: #FBEECC;
+    padding: 3em;
+    border-radius: 0.5em;
+}
+
+.fce .cuadro-perfil .informacion-perfil-docente h4,
+.fce .cuadro-perfil .informacion-perfil-docente p {
+    margin: 0px 10px;
+    text-align: left;
+}
+
+/* ==========================================================================
+  8.3. Accordeon texto basico
+  ========================================================================== */
+.fce .texto-basico {
+    background-color: #effaff;
+    padding: 1em;
+}
+
+
+.fce .acordeon-titulo {
+
+    color: #003B71;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    outline: none;
+    border-radius: 0.5em 0.5em 0 0;
+    border-bottom: 3px solid #003B71;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.fce .acordeon-titulo p {
+    margin: 0;
+    padding: 0.5em;
+}
+
+.fce .acordeon-titulo:after {
+    content: '\002B';
+    font-weight: bold;
+
+    margin-right: 1em;
+}
+
+.fce .activador,
+.fce .acordeon-titulo:hover {
+    background-color: #003B71;
+    color: #fff;
+    border-bottom: 3px solid #003B71;
+}
+
+.fce .activador:after {
+    content: "\2212";
+}
+
+.fce .panel-textobasico {
+    margin-top: 1em;
+    padding: 0 1em;
+    max-height: 0;
+    overflow: hidden;
+
+    /*    transition: max-height 0.2s ease-out;
+*/
+}
+
+.fce .acordeon-titulo,
+.fce .panel-textobasico {
+    -webkit-transition: all 0.8s ease-in-out;
+    -moz-transition: all 0.8s ease-in-out;
+    -ms-transition: all 0.8s ease-in-out;
+    transition: all 0.8s ease-in-out;
+}
+
+/* ==========================================================================
+  8.3. Accordeon contenido
+  ========================================================================== */
+
+.fce .acordeon-contenido {
+    color: #003B71;
+    cursor: pointer;
+    width: 60%;
+    text-align: left;
+    outline: none;
+    border-radius: 0.5em 0.5em 0 0;
+    border-bottom: 3px solid #003B71;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+
+
+.fce .acordeon-contenido p {
+    margin: 0;
+    padding: 0.5em;
+}
+
+.fce .acordeon-contenido:after {
+    content: '\002B';
+    font-weight: bold;
+
+    margin-right: 1em;
+}
+
+.fce .activador,
+.fce .acordeon-contenido:hover {
+    background-color: #003B71;
+    color: #fff;
+    border-bottom: 3px solid #003B71;
+}
+
+.fce .activador:after {
+    content: "\2212";
+}
+
+.fce .panel-cont-accordeon {
+    margin-top: 1em;
+    padding: 0 1em;
+    max-height: 0;
+    overflow: hidden;
+
+    /*    transition: max-height 0.2s ease-out;
+*/
+}
+
+.fce .acordeon-contenido,
+.fce .panel-cont-accordeon {
+    -webkit-transition: all 0.8s ease-in-out;
+    -moz-transition: all 0.8s ease-in-out;
+    -ms-transition: all 0.8s ease-in-out;
+    transition: all 0.8s ease-in-out;
+}
+
+
+/* ==========================================================================
+  9. Archivos previsualziacion
+  ========================================================================== */
+.fce .archivos {
+    margin-right: auto;
+    padding: 10px;
+    position: relative;
+    width: 650px;
+
+}
+
+/* ==========================================================================
+  10. Boton flotante
+  ========================================================================== */
+#button {
+    display: inline-block;
+    background-color: #eaab00;
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    border-radius: 4px;
+    position: fixed !important;
+    bottom: 90px;
+    right: 50px;
+    transition: background-color .3s, opacity .5s, visibility .5s;
+    opacity: 0;
+    visibility: hidden;
+    z-index: 1000;
+    text-decoration: none !important;
+}
+
+#button::after {
+    content: "\21E7";
+    font-family: FontAwesome;
+    font-weight: normal;
+    font-style: normal;
+    font-size: 2em;
+    line-height: 50px;
+    color: #fff;
+}
+
+#button:hover {
+    cursor: pointer;
+    background-color: #003f72;
+}
+
+#button:active {
+    background-color: #555;
+}
+
+#button.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+
+
+/* ==========================================================================
+   Contenedor Tablas, Imagenes y Grupo de Formulas
+  ========================================================================== */
+
+.contenedor-tabla {
+    width: 100%;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+
+.contenedor-imagen {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+.contenedor-recursos {
+    width: 100%;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+.contenedor-formulas {
+    display: flex;
+    justify-content: flex-start;
+    /* AlineaciÃƒÂ³n horizontal */
+    overflow-x: auto;
+    width: 100%;
+    /* Asegura que el contenedor ocupe todo el ancho disponible */
+    box-sizing: border-box;
+    /* Incluye padding y borde dentro del ancho */
+}
+
+.contenedor-formulas {
+    flex-shrink: 1;
+    /* Permite que los elementos hijos reduzcan su tamaÃƒÂ±o si es necesario */
+    max-width: 100%;
+
+
+}
+
+
+.contenedor-formulas.centro {
+    justify-content: center;
+    /* Alinea la tabla al centro */
+}
+
+.contenedor-formulas.derecha {
+    justify-content: flex-end;
+    /* Alinea la tabla a la derecha */
+}
+
+.tabla {
+    display: table;
+    width: auto;
+}
+
+.fila {
+    display: table-row;
+}
+
+.columna {
+    display: table-cell;
+    vertical-align: middle;
+    /* Alinea el contenido de la celda verticalmente al centro */
+    /* padding: 4px; */
+}
+
+
+.columna ul {
+    list-style-type: square;
+    /* ViÃƒÂ±etas visibles */
+    margin: 5px;
+    /* Elimina margenes */
+    padding-left: 10px;
+    /* Espaciado de vinetas */
+}
+
+.columna li {
+    margin: 5px;
+    /* Elimina margenes */
+    padding: 0;
+    /* Elimina rellenos */
+}
+
+/* Ajustes de parrafos */
+.columna p {
+    margin: 5px;
+    /* Elimina mÃƒÂ¡rgenes del texto */
+}
+
+
+.pad-r-20 {
+    padding-right: 20px;
+}
+
+.pad-r-50 {
+    padding-right: 50px;
+}
+
+
+.pad-r-100 {
+    padding-right: 100px;
+}
+
+
+/* Para tabletas (ancho entre 768px y 1024px) */
+@media (max-width: 1024px) {
+    .pad-r-20 {
+        padding-right: 15px;
+        /* Reduce el padding para tabletas */
+    }
+
+    .pad-r-50 {
+        padding-right: 25px;
+        /* Reduce el padding para tabletas */
+    }
+
+    .pad-r-100 {
+        padding-right: 50px;
+        /* Ajuste proporcional */
+    }
+}
+
+/* Para celulares (ancho menor o igual a 768px) */
+@media (max-width: 768px) {
+    .pad-r-20 {
+        padding-right: 10px;
+        /* Reduce el padding aÃƒÂºn mÃƒÂ¡s para celulares */
+    }
+
+    .pad-r-50 {
+        padding-right: 15px;
+        /* Ajuste para pantallas pequeÃƒÂ±as */
+    }
+
+    .pad-r-100 {
+        padding-right: 20px;
+        /* Ajuste para mantener una buena separaciÃƒÂ³n */
+    }
+}
+
+
+/* @media (max-width: 768px) {
+    .tabla {
+        display: block; 
+        width: 100%;
+    }
+
+    .fila {
+        display: block; 
+        width: 100%;
+    }
+
+    .columna {
+        display: block; 
+        width: 100%; 
+        padding: 10px 0;
+        text-align: left; 
+    }
+} */
+
+
+
+
+/* ==========================================================================
+  12. Media Query
+  ========================================================================== */
+
+@media screen and (max-width: 540px) {
+    .fce .fondo-bienvenida {
+        height: auto;
+    }
+
+    .fce .figura-benner {
+        width: 98%;
+        padding: 1%;
+    }
+
+    .fce .video {
+        width: 100%;
+        height: auto;
+    }
+
+    .fce .contenido-ventana {
+        width: 75%;
+    }
+
+    .fce .icono-contexto {
+        display: none;
+    }
+
+    .fce .cuadro-perfil {
+        padding: 0;
+        margin-bottom: 2em;
+    }
+
+    .fce .cuadro-perfil .informacion-perfil-docente h4,
+    .fce .cuadro-perfil .informacion-perfil-docente p {
+        margin: 0px 60px;
+        text-align: left;
+    }
+
+    .fce .cuadro-perfil .informacion-perfil-docente {
+        padding: 1em 0 1em 0.5em;
+    }
+
+    /*------MENU PRINCIPAL--------*/
+    .fce .menu-principal {
+        display: block;
+
+    }
+
+    .fce .menu-principal a:not(:first-child) {
+        display: none;
+    }
+
+    .fce .menu-principal a.icon {
+        display: block;
+        text-align: right;
+        width: auto;
+        border-radius: 12px;
+    }
+
+    .fce .menu-principal.responsive .icon {
+        right: 0;
+        text-align: right;
+    }
+
+    .fce .menu-principal.responsive a {
+        float: none;
+        display: block;
+        width: auto;
+        border-radius: 12px;
+
+
+    }
+
+    .fce .menu-principal a:hover {
+        transform: scale(1.0);
+    }
+
+
+    .fce .menu-principal a.active {
+        background-color: #EAAB00;
+        transform: scale(1.0);
+    }
+
+    /*
+     .boton-ocultar {
+       top: 0px;
+       right: 0px;
+   }*/
+
+    .fce .contenido-tabla {
+        margin-top: 2em;
+
+    }
+
+    .fce table.tabla-resultados {
+        width: auto;
+    }
+
+
+    .fce table.tabla-resultados td,
+    .fce table.tabla-resultados th {
+        padding: 0px;
+    }
+
+    .fce .contenido-principal {
+        margin-left: 0;
+    }
+
+    /*------FIN MENU PRINCIPAL--------*/
+
+
+    .fce .columna-100-movil {
+
+        margin: 10px;
+
+    }
+
+    .fce .columna-75-movil {
+        width: auto;
+        margin: 10px;
+
+    }
+
+    .fce .contenedor-subtitulo {
+        height: auto;
+        display: block;
+    }
+
+    .fce .contenido {
+        width: 96%;
+        display: inline-block;
+    }
+
+    .fce .naranja-utpl {
+        display: block;
+        height: 100%;
+    }
+
+    .fce .contenido .contenido-informacion {
+        width: 93%;
+    }
+
+    .fce .imagen-movil {
+        width: 100%;
+    }
+
+    .fce .contenido-actividad .resultado {
+        margin-top: 2.5em;
+    }
+
+    .fce .fondo-semana1,
+    .fce .fondo-semana2 {
+        height: 3em;
+    }
+
+    .fce .focalizador {
+        padding: 0;
+    }
+
+    .fce .cuadro,
+    .cuadro-v {
+        margin-bottom: 3.5em;
+    }
+
+    .fce .actividad {
+        width: 90%;
+        transform: translate(0px, -75px);
+    }
+
+    .fce .cuadro a,
+    .fce .cuadro a {
+        margin-top: 1.5em;
+    }
+
+    .fce .contenedor-flex {
+        display: inline-block;
+    }
+
+}
+
+/* ==========================================================================
+11. Dark Mode (solo movile)
+========================================================================== */
+@media (prefers-color-scheme: dark) {
+
+    .fce .contenedor-recurso .estilo-enlace a,
+    img {
+        background-color: #FFFFFF;
+    }
+
+    .fce .letra-azul-bim-utpl,
+    .fce .letra-azul-utpl,
+    .fce .acordeon-titulo,
+    .fce .cuadro a,
+    .fce .accordeon,
+    .fce .accordeon:after {
+        color: #FFFFFF;
+    }
+
+    .fce table.tabla-general td,
+    .fce .cuadro-perfil,
+    .fce .texto-basico,
+    .fce .azul-utpl,
+    .fce .focalizador,
+    .fce .cont-accordeon .actividad-recomendada {
+        color: #003F72;
+    }
+
+    .fce .cuadro-perfil img {
+        background: none;
+    }
+
+    .fce .panel-contenido {
+        color: #000000;
+    }
+}
+</script>
+<script type="text/plain" id="js-diseno">
+function sourceCode() {
+    // Variables
+    let i, j, k, l, m, n;
+
+    /*---------MODAL---------*/
+    let abrir_modal = document.getElementsByClassName("mostrar-modal");
+    for (i = 0; i < abrir_modal.length; i++) {
+        abrir_modal[i].addEventListener("click", function () {
+            let modal = document.getElementsByClassName("ventana-emergente");
+            //let activo=document.getElementsByClassName("activo");
+            let activo = document.getElementById("activo");
+            activo.classList.add("active");
+            for (k = 0; k < modal.length; k++) {
+                modal[k].style.display = "flex";
+            }
+        });
+    }
+
+    let cerrar_modal = document.getElementsByClassName("boton-cerrar");
+    for (i = 0; i < cerrar_modal.length; i++) {
+        cerrar_modal[i].addEventListener("click", function () {
+            let modal = document.getElementsByClassName("ventana-emergente");
+            let activo = document.getElementById("activo");
+            activo.classList.remove("active");
+            for (k = 0; k < modal.length; k++) {
+                modal[k].style.display = "none";
+
+            }
+        });
+    }
+    /*---------FIN MODAL---------*/
+
+    /*---------MODAL REQUISITOS---------*/
+    let abrir_modal_req = document.getElementsByClassName("mostrar-modal-requisitos");
+    for (i = 0; i < abrir_modal_req.length; i++) {
+        abrir_modal_req[i].addEventListener("click", function () {
+
+            /* for (i = 0; i < abrir_modal.length; i++) {
+                 abrir_modal[i].classList.remove("active2")
+             }*/
+            this.classList.add("active2");
+            let modal = this.nextElementSibling;
+            modal.style.display = "flex";
+
+
+
+        });
+    }
+    let cerrar_modal_req = document.getElementsByClassName("boton-cerrar-requisitos");
+    for (i = 0; i < cerrar_modal_req.length; i++) {
+        cerrar_modal_req[i].addEventListener("click", function () {
+            let abrir_modal_req = document.getElementsByClassName("mostrar-modal-requisitos");
+            for (n = 0; n < abrir_modal_req.length; n++) {
+                abrir_modal_req[n].classList.remove("active2");
+            }
+            let modal = document.getElementsByClassName("ventana-emergente-requisitos");
+            for (k = 0; k < modal.length; k++) {
+                modal[k].style.display = "none";
+
+            }
+
+
+        });
+    }
+    /*---------FIN MODAL REQUISITOS--------*/
+
+
+
+    /*---------MENU PRINCIPAL---------*/
+    let seleccion_menu = document.getElementsByClassName("icon");
+    for (i = 0; i < seleccion_menu.length; i++) {
+        let menu = document.getElementsByClassName("menu-principal");
+        seleccion_menu[i].addEventListener("click", function () {
+            for (j = 0; j < menu.length; j++) {
+                if (menu[j].className === "menu-principal") {
+                    menu[j].className += " responsive";
+                } else {
+                    menu[j].className = "menu-principal";
+                }
+
+            }
+        });
+    }
+    /*---------FIN MENU PRINCIPAL---------*/
+    /*---------MOSTRAR ACTIVIDADES CALIFICADAS---------*/
+    let boton_mostrar = document.getElementsByClassName("boton-mostrar");
+    for (i = 0; i < boton_mostrar.length; i++) {
+        boton_mostrar[i].addEventListener("click", function () {
+            let link = 'link' + this.id;
+            let tab = this.id;
+            let cuadro = 'cuadro' + this.id;
+            let activo = document.getElementById(tab);
+            activo.classList.add("actilet");
+
+            document.getElementById(link).style.display = "flex";
+        });
+    }
+
+    let boton_ocultar = document.getElementsByClassName("boton-ocultar");
+    for (i = 0; i < boton_ocultar.length; i++) {
+        boton_ocultar[i].addEventListener("click", function () {
+
+            let contenido = document.getElementsByClassName("actividad");
+            for (let i = 0; i < contenido.length; i++) {
+                contenido[i].classList.remove("actilet");
+            }
+            let modal = document.getElementsByClassName("mostrar-actividades");
+            for (k = 0; k < modal.length; k++) {
+                modal[k].style.display = "none";
+
+            }
+        });
+    }
+
+    // Obtener foto de perfil de la plataforma SICA
+
+    $(document).ready(function () {
+        if ($("#usuarioDocente").val() != null) {
+            term = document.querySelector('#usuarioDocente');
+
+            $.ajax({
+                url: 'https://sica.utpl.edu.ec/api/persons/' + term.textContent + '/?token=rWMxU5jI6KLhT2k',
+                type: 'GET',
+                data: {},
+                dataType: 'jsonp',
+                success: function (data) {
+                    console.log(data.image);
+                    term_img = document.querySelector('.fce img#fotoPerfil');
+                    term_img.src = data.image;
+                }
+            });
+        }
+    });
+
+    /* ==========================================================================
+    Max-width en imagenes
+    ============================================================================= */
+
+    const cont_img = document.querySelectorAll('.fce .contenedor-imagen');
+
+    cont_img.forEach(contenedor => {
+        const imagen = contenedor.querySelector('img');
+
+        // Verificar si la imagen tiene un valor de 'width'
+        if (imagen && imagen.getAttribute('width')) {
+            const width = imagen.getAttribute('width');
+            console.log(width);
+            // Asignar el valor de width como max-width en el contenedor
+            contenedor.style.maxWidth = `${width}px`;
+        }
+    });
+
+    /* ==========================================================================
+   Max-width en tablas
+   ============================================================================= */
+
+    const cont_table = document.querySelectorAll('.fce table.tabla-general');
+
+    cont_table.forEach(table => {
+        const width = table.offsetWidth;
+        table.style.maxWidth = `${width}px`;
+    });
+}
+
+
+// Funcion unificada para los 3 acordeones
+function sourceAcordeon() {
+    // Variables
+    let i, j, k, l, m, n;
+
+    /*---------ACORDEON -------*/
+
+    let acc = document.getElementsByClassName("accordeon");
+
+    for (i = 0; i < acc.length; i++) {
+        acc[i].addEventListener("click", function () {
+            this.classList.toggle("activado");
+            let panel = this.nextElementSibling;
+            if (panel.style.maxHeight) {
+                panel.style.maxHeight = null;
+            } else {
+                panel.style.maxHeight = panel.scrollHeight + "px";
+            }
+        });
+    }
+
+    /*---------FIN ACORDEON_____*/
+
+
+    /*---------ACORDEON CONTENIDO BOTON--------------*/
+
+    let acct_btn = document.getElementsByClassName("acordeon-contenido");
+    let accp_btn = document.getElementsByClassName("panel-cont-accordeon");
+
+
+    for (i = 0; i < acct_btn.length; i++) {
+
+        acct_btn[i].addEventListener("click", function () {
+
+            for (n = 0; n < acct_btn.length; n++) {
+                acct_btn[n].classList.remove("activador");
+            }
+            //document.getElementsByClassName("panel").style.display = "none";
+
+            this.classList.toggle("activador");
+            let panel = this.nextElementSibling;
+            if (panel.style.maxHeight) {
+
+                for (i = 0; i < accp_btn.length; i++) {
+
+                    accp_btn[i].style.maxHeight = null;
+                    acct_btn[i].classList.remove("activador");
+                }
+                panel.style.maxHeight = null;
+
+            } else {
+
+                for (i = 0; i < accp_btn.length; i++) {
+                    accp_btn[i].style.maxHeight = null;
+
+                }
+                panel.style.maxHeight = panel.scrollHeight + "px";
+
+            }
+        });
+    }
+
+    /*---------FIN ACORDEON CONTENIDO BOTON-------*/
+
+    /*---------ACORDEON TEXTO BASICO--------------*/
+
+    let acct_txt = document.getElementsByClassName("acordeon-titulo");
+    let accp_txt = document.getElementsByClassName("panel-textobasico");
+
+    for (i = 0; i < acct_txt.length; i++) {
+
+
+        acct_txt[i].addEventListener("click", function () {
+
+            for (n = 0; n < acc.length; n++) {
+                acct_txt[n].classList.remove("activador");
+            }
+            //document.getElementsByClassName("panel").style.display = "none";
+
+            this.classList.toggle("activador");
+            let panel = this.nextElementSibling;
+            if (panel.style.maxHeight) {
+
+                for (i = 0; i < accp_txt.length; i++) {
+
+                    accp_txt[i].style.maxHeight = null;
+                    accp_txt[i].style.padding = 0 + "em";
+                    acct_txt[i].classList.remove("activador");
+                }
+                panel.style.maxHeight = null;
+                panel.style.padding = 0 + "em";
+
+            } else {
+
+                for (i = 0; i < accp_txt.length; i++) {
+                    accp_txt[i].style.maxHeight = null;
+                    accp_txt[i].style.padding = 0 + "em";
+                }
+                panel.style.maxHeight = panel.scrollHeight + "px";
+                panel.style.padding = 1 + "em";
+
+            }
+        });
+    }
+}
+
+
+// Ejecutar Funciones
+window.onload = function () {
+    sourceCode();
+    sourceAcordeon();
+};
+</script>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   1. Lectura del archivo
+   ===================================================================== */
+const RE_TEMA   = /^\s*(\d+(?:\.\d+)+)\s*\.?\s+\S/;
+const RE_UNIDAD = /unidad\s+(\d+)/i;
+const RE_SEM    = /semana[-_\s]*(\d+)/i;
+
+function separarObjetos(texto){
+  const salida=[]; let prof=0, ini=-1, cadena=false, escape=false;
+  for(let i=0;i<texto.length;i++){
+    const c=texto[i];
+    if(cadena){
+      if(escape) escape=false;
+      else if(c==="\\") escape=true;
+      else if(c==='"') cadena=false;
+      continue;
+    }
+    if(c==='"'){cadena=true;continue;}
+    if(c==="{"){ if(prof===0) ini=i; prof++; }
+    else if(c==="}"){ prof--; if(prof===0&&ini>=0){ salida.push(texto.slice(ini,i+1)); ini=-1; } }
+  }
+  return salida.map(t=>JSON.parse(t));
+}
+
+function leerCurso(texto){
+  texto = texto.trim();
+  try{
+    const datos = JSON.parse(texto);
+    if(Array.isArray(datos)) return datos;
+    if(datos && typeof datos==="object"){
+      for(const clave of ["pages","items","semanas","data"]){
+        if(Array.isArray(datos[clave])) return datos[clave];
+      }
+      return [datos];
+    }
+  }catch(e){ /* se intenta con objetos concatenados */ }
+  const objetos = separarObjetos(texto);
+  if(!objetos.length) throw new Error("No se reconoce el contenido como JSON de páginas de Canvas.");
+  return objetos;
+}
+
+function numeroSemana(sem){
+  for(const clave of ["url","title","html_url"]){
+    const v=sem[clave];
+    if(typeof v==="string"){ const m=v.match(RE_SEM); if(m) return parseInt(m[1],10); }
+  }
+  return 1e6;
+}
+
+/* =====================================================================
+   2. Utilidades de HTML
+   ===================================================================== */
+const salidaDoc = document.implementation.createHTMLDocument("fusion");
+
+const normalizar = el => (el.textContent||"").replace(/\s+/g," ").trim().toLowerCase();
+const tieneClase = (el,c) => el.nodeType===1 && el.classList.contains(c);
+const hijosTag   = el => Array.from(el.children);
+const importar   = el => salidaDoc.importNode(el,true);
+
+function claveTema(texto){
+  const m = texto.match(RE_TEMA);
+  return m ? m[1].split(".").map(Number) : null;
+}
+function comparaTemas(a,b){
+  const n=Math.max(a.length,b.length);
+  for(let i=0;i<n;i++){
+    const x=a[i]??-1, y=b[i]??-1;
+    if(x!==y) return x-y;
+  }
+  return 0;
+}
+function claveUnidad(h3){
+  const t=(h3.textContent||"").replace(/\s+/g," ").trim();
+  const m=t.match(RE_UNIDAD);
+  return m ? "unidad-"+m[1] : t.toLowerCase();
+}
+function esMedia(el){
+  return el.querySelector("iframe,img") !== null ||
+         ["iframe","img","table"].includes(el.tagName.toLowerCase());
+}
+
+/* =====================================================================
+   3. Descomposición de una semana
+   ===================================================================== */
+function seccionesDe(body, etiqueta){
+  const doc = new DOMParser().parseFromString(body||"", "text/html");
+  const contenedor = doc.querySelector(".contenedor-estilo") || doc.body;
+
+  const s = {etiqueta, contenedor, menu:null, resultados:[], unidades:[],
+             campos:[], acordeones:[], pie:null, sueltos:[]};
+  let unidad = null;
+
+  for(const nodo of hijosTag(contenedor)){
+    const t = nodo.tagName.toLowerCase();
+    if(t==="br") continue;
+
+    if(tieneClase(nodo,"menu-navegacion")){ s.menu = s.menu||nodo; }
+    else if(tieneClase(nodo,"resultado-aprendizaje")){ s.resultados.push(nodo); }
+    else if(t==="h3" && tieneClase(nodo,"titulo-semana")){
+      unidad = {h3:nodo, cuadro:null, clave:claveUnidad(nodo)};
+      s.unidades.push(unidad);
+    }
+    else if(tieneClase(nodo,"cuadro-texto")){
+      if(unidad && !unidad.cuadro){ unidad.cuadro = nodo; }
+      else{
+        unidad = {h3:null, cuadro:nodo, clave:`${etiqueta}-sin-unidad-${s.unidades.length}`};
+        s.unidades.push(unidad);
+      }
+    }
+    else if(tieneClase(nodo,"campos-adicionales")){ s.campos.push(...hijosTag(nodo)); }
+    else if(tieneClase(nodo,"acordeon")){ s.acordeones.push(nodo); }
+    else if(tieneClase(nodo,"pie-pagina")){ s.pie = s.pie||nodo; }
+    else{ s.sueltos.push(nodo); }
+  }
+  return s;
+}
+
+/* =====================================================================
+   4. Piezas de la fusión
+   ===================================================================== */
+function construirMenu(modelo, indice, total){
+  if(!modelo) return null;
+  const menu = importar(modelo);
+  const enlaces = menu.querySelector(".enlaces");
+  if(!enlaces) return menu;
+  const base = enlaces.querySelector("a");
+  if(!base) return menu;
+
+  const nuevos=[];
+  for(let i=1;i<=total;i++){
+    const a = base.cloneNode(true);
+    a.classList.remove("selected");
+    if(i===indice) a.classList.add("selected");
+    for(const attr of ["href","data-api-endpoint"]){
+      if(a.hasAttribute(attr)) a.setAttribute(attr, a.getAttribute(attr).replace(/semana-\d+/g,"semana-"+i));
+    }
+    a.textContent = String(i);
+    nuevos.push(a);
+  }
+  enlaces.textContent="";
+  nuevos.forEach((a,i)=>{
+    enlaces.appendChild(a);
+    if(i<nuevos.length-1) enlaces.appendChild(salidaDoc.createTextNode(" "));
+  });
+  return menu;
+}
+
+function fusionarCuadros(cuadros, modoIntros, notas){
+  const nuevo = salidaDoc.createElement("div");
+  nuevo.className = cuadros[0].cuadro.className || "cuadro-texto";
+
+  const media=[], intros=[], temas=[], resto=[];
+  const vistosMedia=new Set(), vistosTemas=new Set();
+  let orden=0;
+
+  for(const {etiqueta,cuadro} of cuadros){
+    for(const hijo of hijosTag(cuadro)){
+      const texto=(hijo.textContent||"").replace(/\s+/g," ").trim();
+      const k=claveTema(texto);
+      if(k){
+        const firma=k.join(".");
+        if(vistosTemas.has(firma)){ notas.push({tipo:"omite",texto:`tema repetido: ${texto.slice(0,60)}`}); continue; }
+        vistosTemas.add(firma);
+        temas.push({k,orden:orden++,nodo:hijo});
+      }else if(esMedia(hijo)){
+        const firma = Array.from(hijo.querySelectorAll("iframe,img,a"))
+          .map(t=>t.getAttribute("src")||t.getAttribute("href")||"").sort().join("|") || texto.slice(0,80);
+        if(vistosMedia.has(firma)) continue;
+        vistosMedia.add(firma);
+        media.push(hijo);
+      }else if(texto){ intros.push({etiqueta,nodo:hijo}); }
+      else{ resto.push(hijo); }
+    }
+  }
+
+  media.forEach(n=>nuevo.appendChild(importar(n)));
+  if(intros.length){
+    if(modoIntros==="todas"){ intros.forEach(i=>nuevo.appendChild(importar(i.nodo))); }
+    else{
+      nuevo.appendChild(importar(intros[0].nodo));
+      intros.slice(1).forEach(i=>notas.push({tipo:"omite",
+        texto:`bienvenida de ${i.etiqueta}: “${(i.nodo.textContent||"").replace(/\s+/g," ").trim().slice(0,80)}”`}));
+    }
+  }
+  temas.sort((a,b)=>comparaTemas(a.k,b.k)||a.orden-b.orden)
+       .forEach(t=>nuevo.appendChild(importar(t.nodo)));
+  resto.forEach(n=>nuevo.appendChild(importar(n)));
+  return nuevo;
+}
+
+function unirAcordeonesPorTitulo(acordeones, notas){
+  const salida=[], indice=new Map();
+  for(const {etiqueta,nodo} of acordeones){
+    const h3=nodo.querySelector("h3");
+    const titulo=h3?normalizar(h3):`__${salida.length}`;
+    if(indice.has(titulo)){
+      const destino=indice.get(titulo).querySelector(".contenido-acordeon");
+      const origen=nodo.querySelector(".contenido-acordeon");
+      if(destino&&origen){
+        hijosTag(origen).forEach(h=>destino.appendChild(importar(h)));
+        notas.push({tipo:"une",texto:`acordeón “${titulo.slice(0,48)}” unido con el de ${etiqueta}`});
+        continue;
+      }
+    }
+    const copia=importar(nodo);
+    indice.set(titulo,copia);
+    salida.push(copia);
+  }
+  return salida;
+}
+
+/* =====================================================================
+   5. Fusión completa de un grupo de semanas
+   ===================================================================== */
+function fusionarBodies(bodies, indice, total, opciones, notas){
+  const secciones = bodies.map(b=>seccionesDe(b.body,b.etiqueta));
+
+  const contenedor = salidaDoc.createElement("div");
+  const cont0 = secciones.find(s=>s.contenedor.classList &&
+                                  s.contenedor.classList.contains("contenedor-estilo"));
+  contenedor.className = cont0 ? cont0.contenedor.className : "contenedor-estilo";
+
+  /* menú */
+  const modelo = secciones.find(s=>s.menu)?.menu;
+  const menu = construirMenu(modelo, indice, total);
+  if(menu) contenedor.appendChild(menu);
+
+  /* resultado de aprendizaje, sin duplicar */
+  const vistos=new Set();
+  for(const s of secciones){
+    for(const ra of s.resultados){
+      const firma=normalizar(ra);
+      if(vistos.has(firma)){ notas.push({tipo:"omite",texto:`resultado de aprendizaje repetido (${s.etiqueta})`}); continue; }
+      vistos.add(firma);
+      contenedor.appendChild(importar(ra));
+    }
+  }
+
+  /* unidades y temas */
+  const orden=[], grupos=new Map();
+  for(const s of secciones){
+    for(const u of s.unidades){
+      if(!grupos.has(u.clave)){ grupos.set(u.clave,{h3:u.h3,cuadros:[]}); orden.push(u.clave); }
+      else if(u.h3){ notas.push({tipo:"une",
+        texto:`“${(u.h3.textContent||"").replace(/\s+/g," ").trim()}” de ${s.etiqueta} agrupada con la anterior`}); }
+      if(u.cuadro) grupos.get(u.clave).cuadros.push({etiqueta:s.etiqueta,cuadro:u.cuadro});
+    }
+  }
+  for(const clave of orden){
+    const g=grupos.get(clave);
+    if(g.h3) contenedor.appendChild(importar(g.h3));
+    if(g.cuadros.length) contenedor.appendChild(fusionarCuadros(g.cuadros,opciones.intros,notas));
+    contenedor.appendChild(salidaDoc.createElement("br"));
+  }
+
+  /* campos adicionales */
+  const campos=secciones.flatMap(s=>s.campos.map(c=>({etiqueta:s.etiqueta,nodo:c})));
+  if(campos.length){
+    const div=salidaDoc.createElement("div");
+    div.className="campos-adicionales";
+    const vistosCampos=new Set();
+    for(const {nodo} of campos){
+      const a=nodo.querySelector("a");
+      const firma=a&&a.getAttribute("href")?a.getAttribute("href"):normalizar(nodo);
+      if(vistosCampos.has(firma)){ notas.push({tipo:"omite",texto:`enlace repetido: ${normalizar(nodo).slice(0,50)}`}); continue; }
+      vistosCampos.add(firma);
+      div.appendChild(importar(nodo));
+    }
+    contenedor.appendChild(div);
+    contenedor.appendChild(salidaDoc.createElement("br"));
+  }
+
+  /* acordeones */
+  let acordeones=secciones.flatMap(s=>s.acordeones.map(a=>({etiqueta:s.etiqueta,nodo:a})));
+  let finales = opciones.unirAcordeones
+      ? unirAcordeonesPorTitulo(acordeones,notas)
+      : acordeones.map(a=>importar(a.nodo));
+  finales.forEach((ac,i)=>{
+    ac.classList.remove("active");
+    if(i===0) ac.classList.add("active");
+    contenedor.appendChild(ac);
+  });
+
+  /* contenido no clasificado y pie */
+  secciones.forEach(s=>s.sueltos.forEach(n=>contenedor.appendChild(importar(n))));
+  const pie=secciones.find(s=>s.pie)?.pie;
+  if(pie) contenedor.appendChild(importar(pie));
+
+  return contenedor.outerHTML.replace(/\u00a0/g,"&nbsp;");
+}
+
+/* =====================================================================
+   6. Vista previa
+   ===================================================================== */
+const recursoTexto = id => (document.getElementById(id)?.textContent || "").trim();
+
+/* Base tipográfica de Canvas + las reglas que el rediseño define para <p>
+   y que aquí recaen en el <h3> de la cabecera del acordeón. */
+const PUENTE = `
+body{margin:0;padding:16px;background:#fff;
+     font-family:'Lato Extended','Lato','Helvetica Neue',Helvetica,Arial,sans-serif;
+     font-size:14px;line-height:1.5;color:#2d3b45;}
+.fce{max-width:1100px;margin:0 auto;}
+.fce .acordeon-titulo h3{margin:0;padding:0.5em;display:flex;align-items:center;gap:0.6em;}
+.fce .acordeon-titulo img{margin:0;}
+`;
+
+/* Traduce las clases de la plantilla del export a las del rediseño.
+   Solo corre dentro de la vista previa: el body del JSON no se toca. */
+const ADAPTADOR = `
+(function(){
+  var raiz = document.querySelector('.fce') || document.body;
+  var q = function(sel){ return Array.prototype.slice.call(raiz.querySelectorAll(sel)); };
+
+  q('.contenedor-estilo').forEach(function(e){ e.classList.add('contenedor-principal'); });
+  q('.resultado-aprendizaje').forEach(function(e){ e.classList.add('contenedor-semana'); });
+  q('h3.titulo-semana').forEach(function(e){ e.classList.add('subtitulo-semana'); });
+  q('.campos-adicionales > div').forEach(function(e){ e.classList.add('boton-secundario'); });
+  q('.acordeon > .etiqueta-acordeon').forEach(function(e){ e.classList.add('acordeon-titulo'); });
+  q('.acordeon > .contenido-acordeon').forEach(function(e){ e.classList.add('panel-textobasico'); });
+
+  q('.menu-navegacion .enlaces').forEach(function(cont){
+    cont.classList.add('menu-semana');
+    Array.prototype.slice.call(cont.children).forEach(function(a){
+      if(a.tagName !== 'A') return;
+      var caja = document.createElement('div');
+      caja.className = 'tab-semana' + (a.classList.contains('selected') ? ' activo-semana' : '');
+      var p = document.createElement('p');
+      cont.insertBefore(caja, a);
+      p.appendChild(a);
+      caja.appendChild(p);
+    });
+  });
+
+  window.addEventListener('load', function(){
+    var abierto = raiz.querySelector('.acordeon.active > .contenido-acordeon');
+    if(abierto){
+      var cab = abierto.previousElementSibling;
+      if(cab) cab.classList.add('activador');
+      abierto.style.maxHeight = abierto.scrollHeight + 'px';
+      abierto.style.padding = '1em';
+    }
+  });
+})();
+`;
+
+/* redisenoIA.js usa jQuery solo para la foto del docente (SICA).
+   Fuera de Canvas no hay jQuery y el error cortaría el resto del script. */
+const SHIM_JQUERY = `
+if (typeof window.$ === 'undefined') {
+  window.$ = function(){ return { val: function(){ return null; }, ready: function(f){ f(); } }; };
+  window.$.ajax = function(){};
+}
+`;
+
+function documentoHTML(titulo, body){
+  const css = recursoTexto($("hoja").value === "movil" ? "css-movil" : "css-web");
+  const js  = recursoTexto("js-diseno");
+  const cierre = "<" + "/script>";
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${titulo}</title>
+<style>${PUENTE}</style>
+<style>${css}</style></head>
+<body>
+<div class="fce">
+${body}
+</div>
+<script>${ADAPTADOR}${cierre}
+<script>${SHIM_JQUERY}${cierre}
+<script>${js}${cierre}
+</body></html>`;
+}
+
+/* =====================================================================
+   7. Interfaz
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+let semanas=[], resultado=null, nombreBase="Curso";
+
+function mostrarError(titulo, detalle){
+  $("error-titulo").textContent=titulo;
+  $("error-detalle").textContent=detalle||"";
+  $("error").classList.remove("oculto");
+}
+const limpiarError = () => $("error").classList.add("oculto");
+
+function cargarArchivo(file){
+  limpiarError();
+  nombreBase = file.name.replace(/\.json$/i,"") || "Curso";
+  const lector=new FileReader();
+  lector.onerror = () => mostrarError("No se pudo leer el archivo.","Vuelve a intentarlo o elige otro archivo.");
+  lector.onload = () => {
+    try{
+      semanas = leerCurso(String(lector.result));
+      semanas.sort((a,b)=>numeroSemana(a)-numeroSemana(b));
+      if(!semanas.length) throw new Error("El archivo no contiene páginas.");
+      const conBody = semanas.filter(s=>typeof s.body==="string").length;
+      if(!conBody) throw new Error('Ninguna página tiene el campo "body" con HTML.');
+
+      const zona=$("zona");
+      zona.classList.add("cargado");
+      zona.innerHTML = `<div class="archivo-info">
+          <p class="zona-titulo">${semanas.length} semanas detectadas</p>
+          <span class="nombre">${file.name}</span>
+          <span class="zona-nota" style="margin:0">pulsa para cambiar el archivo</span>
+        </div>`;
+      $("fusionar").disabled=false;
+      $("panel-resultados").classList.add("oculto");
+      resultado=null;
+    }catch(err){
+      semanas=[]; $("fusionar").disabled=true;
+      mostrarError("Ese archivo no se pudo interpretar.", err.message);
+    }
+  };
+  lector.readAsText(file,"utf-8");
+}
+
+function dibujarMapa(grupos){
+  const totalOrig = grupos.reduce((n,g)=>n+g.length,0);
+  const cols = `grid-template-columns:repeat(${totalOrig},minmax(28px,1fr))`;
+  let origen="", llaves="", destino="";
+  let col=1;
+  grupos.forEach((g,i)=>{
+    g.forEach(s=>{
+      const n=numeroSemana(s);
+      origen += `<div class="pastilla origen" style="grid-column:${col++}">${n>=1e6?"·":n}</div>`;
+    });
+    const desde=col-g.length;
+    llaves  += `<div class="llave" style="grid-column:${desde}/${col}"></div>`;
+    destino += `<div class="pastilla destino" style="grid-column:${desde}/${col}">${i+1}</div>`;
+  });
+  $("mapa").innerHTML =
+    `<div class="fila-pastillas" style="${cols}">${origen}</div>
+     <div class="fila-llaves" style="${cols}">${llaves}</div>
+     <div class="fila-pastillas" style="${cols}">${destino}</div>
+     <p class="leyenda-mapa">semanas originales → semanas fusionadas</p>`;
+}
+
+function fusionar(){
+  limpiarError();
+  const tam = Math.max(2, Math.min(8, parseInt($("grupo").value,10)||2));
+  const opciones = {intros:$("intros").value, unirAcordeones:$("acordeones").checked};
+
+  const grupos=[];
+  for(let i=0;i<semanas.length;i+=tam) grupos.push(semanas.slice(i,i+tam));
+  const total=grupos.length;
+
+  const nuevas=[], tarjetas=[];
+  const reporte=[`Archivo: ${nombreBase}.json`,
+                 `Semanas originales: ${semanas.length}`,
+                 `Semanas fusionadas: ${total}`,""];
+
+  grupos.forEach((grupo,idx)=>{
+    const i=idx+1;
+    const etiquetas=grupo.map((g,j)=>g.title||g.url||`Página ${j+1}`);
+    const notas=[];
+    const body=fusionarBodies(
+      grupo.map((g,j)=>({etiqueta:etiquetas[j], body:g.body||""})),
+      i,total,opciones,notas);
+
+    const nueva=JSON.parse(JSON.stringify(grupo[0]));
+    nueva.title=`Semana ${i}`;
+    nueva.url=`semana-${i}`;
+    if(typeof nueva.html_url==="string") nueva.html_url=nueva.html_url.replace(/semana-\d+/g,`semana-${i}`);
+    nueva.body=body;
+    const fechas=grupo.map(g=>g.updated_at).filter(Boolean).sort();
+    if(fechas.length) nueva.updated_at=fechas[fechas.length-1];
+    nuevas.push(nueva);
+
+    tarjetas.push({i,etiquetas,notas,body});
+    reporte.push(`Nueva semana ${i}  <-  ${etiquetas.join(", ")}`);
+    notas.forEach(n=>reporte.push(`    ${n.tipo==="une"?"+":"-"} ${n.texto}`));
+    reporte.push("");
+  });
+
+  resultado={nuevas,tarjetas,reporte:reporte.join("\n")};
+
+  $("conteo").innerHTML=`<span>${semanas.length}</span> semanas → <span>${total}</span> semanas`;
+  dibujarMapa(grupos);
+  $("lista").innerHTML = tarjetas.map(t=>`
+    <div class="semana">
+      <div class="semana-cab">
+        <div class="semana-id">
+          <strong>Semana ${t.i}</strong>
+          <span class="origenes">${t.etiquetas.join(" + ")}</span>
+        </div>
+        <div class="acciones">
+          <button class="secundario" data-ver="${t.i}">Ver vista previa</button>
+          <button class="secundario" data-bajar="${t.i}">Descargar HTML</button>
+        </div>
+      </div>
+      ${t.notas.length?`<ul class="notas">${t.notas.map(n=>
+        `<li class="${n.tipo==="une"?"union":""}">${n.texto}</li>`).join("")}</ul>`:""}
+      <div class="vista oculto" id="vista-${t.i}"></div>
+    </div>`).join("");
+  $("panel-resultados").classList.remove("oculto");
+  $("panel-resultados").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function descargar(nombre, contenido, tipo){
+  const blob=new Blob([contenido],{type:tipo+";charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
+/* --- eventos --- */
+const zona=$("zona");
+zona.addEventListener("click",()=>$("archivo").click());
+zona.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); $("archivo").click(); }});
+zona.addEventListener("dragover",e=>{e.preventDefault();zona.classList.add("encima");});
+zona.addEventListener("dragleave",()=>zona.classList.remove("encima"));
+zona.addEventListener("drop",e=>{
+  e.preventDefault(); zona.classList.remove("encima");
+  if(e.dataTransfer.files.length) cargarArchivo(e.dataTransfer.files[0]);
+});
+$("archivo").addEventListener("change",e=>{
+  if(e.target.files.length) cargarArchivo(e.target.files[0]);
+  e.target.value="";   // permite volver a elegir el mismo archivo
+});
+$("fusionar").addEventListener("click",()=>{
+  try{ fusionar(); }
+  catch(err){ mostrarError("La fusión se detuvo.", err.message); }
+});
+
+$("lista").addEventListener("click",e=>{
+  const ver=e.target.dataset.ver, bajar=e.target.dataset.bajar;
+  if(ver){
+    const t=resultado.tarjetas.find(x=>String(x.i)===ver);
+    const caja=$("vista-"+ver);
+    if(caja.classList.contains("oculto")){
+      caja.innerHTML=`<iframe title="Vista previa de la semana ${ver}"></iframe>`;
+      caja.querySelector("iframe").srcdoc=documentoHTML(`Semana ${ver}`,t.body);
+      caja.classList.remove("oculto");
+      e.target.textContent="Ocultar vista previa";
+    }else{
+      caja.classList.add("oculto"); caja.innerHTML="";
+      e.target.textContent="Ver vista previa";
+    }
+  }
+  if(bajar){
+    const t=resultado.tarjetas.find(x=>String(x.i)===bajar);
+    descargar(`nueva_semana_${bajar}.html`, documentoHTML(`Semana ${bajar}`,t.body), "text/html");
+  }
+});
+
+$("bajar-json").addEventListener("click",()=>
+  descargar(`${nombreBase}_fusionado.json`, JSON.stringify(resultado.nuevas,null,2), "application/json"));
+$("bajar-reporte").addEventListener("click",()=>
+  descargar("reporte_fusion.txt", resultado.reporte, "text/plain"));
+$("bajar-html").addEventListener("click",()=>{
+  resultado.tarjetas.forEach((t,k)=>setTimeout(()=>
+    descargar(`nueva_semana_${t.i}.html`, documentoHTML(`Semana ${t.i}`,t.body), "text/html"), k*350));
+});
+</script>
+</body>
+</html>
